@@ -854,6 +854,39 @@ class Model(XBinIO, object):
                       extended_features=True, header_message=""):
         # If there is no current version, fallback to the argument
         version = validate_version(self, version)
+        
+        # NOTE: Cosmetic bones are only used by version 7 and later
+        if version == 7:
+            cosmetics = len([bone for bone in self.bones if bone.cosmetic])
+            if cosmetics > 0:
+
+                # Cosmetic bones MUST be written AFTER the standard bones in
+                #  the bone info list, so we need to generate a sorted list
+                #  of index/bone pairs
+                bone_enum = sorted(enumerate(self.bones),
+                                   key=lambda kvp: kvp[1].cosmetic)
+
+                # Allocate space for the bone map before any
+                #  modifications to self.bones
+                bone_map = [None] * len(self.bones)
+
+                # Update the bone list & build old->new index map
+                index_map, self.bones = zip(*bone_enum)
+                for new, old in enumerate(index_map):
+                    bone_map[old] = new
+
+                # Rebuild the parent indices for all non-root bones
+                for bone in self.bones:
+                    if bone.parent != -1:
+                        bone.parent = bone_map[bone.parent]
+
+                # Rebuild the weight tables for all vertices
+                for mesh in self.meshes:
+                    for vert in mesh.verts:
+                        vert.weights = [(bone_map[old_index], weight)
+                                        for old_index, weight in vert.weights]
+
+
         return self.__xbin_writefile_model_internal__(path,
                                                       version,
                                                       extended_features,

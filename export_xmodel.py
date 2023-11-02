@@ -193,6 +193,28 @@ class ExportMesh(object):
         self.mesh.user_clear()
         bpy.data.meshes.remove(self.mesh)
 
+    # find places where we have too many weights and remove the lowest weights, then renormalize the total
+    def fix_too_many_weights(self):
+
+        b_any_bad = False
+
+        for v in range(0, len(self.weights)):
+
+            if len(self.weights[v]) <= 15: # because even though ape says we can have 16, we cant. we can only have 15.
+                continue
+
+            b_any_bad = True
+
+            self.weights[v].sort(key= lambda x: x[1], reverse=True) # sort by the weight amount, descending order
+            while len(self.weights[v]) > 15:
+                self.weights[v].pop() # get rid of lowest
+
+            length = sum([x[1] ** 2 for x in self.weights[v]]) ** 0.5 # calc the vector length
+            self.weights[v] = [(x[0], x[1] / length) for x in self.weights[v]] # divide the entire array by the length (normalize it)
+
+        return b_any_bad
+
+
     def add_weights(self, bone_table, weight_min_threshold=0.0):
         ob = self.object
         if ob.vertex_groups is None:
@@ -211,6 +233,7 @@ class ExportMesh(object):
                     if bone_index is not None:
                         if group.weight < weight_min_threshold:
                             continue  # Skip weights below the weight threshold
+
                         self.weights[vert_index].append(
                             (bone_index, group.weight))
 
@@ -218,6 +241,12 @@ class ExportMesh(object):
             for weights in self.weights:
                 if len(weights) == 0:
                     weights.append((0, 1.0))
+            
+            b_any_bad = self.fix_too_many_weights()
+            
+            if b_any_bad:
+                print("WARNING: Model had some verticies with too many weights. Removed the lowest until restrictions of 16 weights or less were met")
+
 
     def gen_material_indices(self, model_materials):
         self.materials = [None] * len(self.mesh.materials)
@@ -434,6 +463,34 @@ def save(self, context, filepath,
 
     return result
 
+tbl_cosmetics = [
+    "j_teeth_lower", "j_teeth_upper", "j_tongue", "j_brow_a01", "j_brow_a01_le", "j_brow_a01_ri", "j_brow_a03_le", "j_brow_a03_ri",
+    "j_brow_a05_le", "j_brow_a05_ri", "j_brow_a07_le", "j_brow_a07_ri", "j_brow_a09_le", "j_brow_a09_ri", "j_brow_b01_le",
+    "j_brow_b01_ri", "j_cheek_a03_le", "j_cheek_a01_ri", "j_cheek_a01_le", "j_brow_b05_ri", "j_brow_b05_le", "j_brow_b03_ri", "j_brow_b03_le"
+    , "j_cheek_b03_ri", "j_cheek_b03_le", "j_cheek_b01_ri", "j_cheek_b01_le", "j_cheek_a07_ri", "j_cheek_a07_le", "j_cheek_a05_ri", "j_cheek_a05_le", "j_cheek_a03_ri"
+    , "j_cheek_c03_le", "j_cheek_c01_ri", "j_cheek_c01_le", "j_cheek_b09_ri", "j_cheek_b09_le", "j_cheek_b07_ri", "j_cheek_b07_le", "j_cheek_b05_ri", "j_cheek_b05_le"
+    , "j_chin_jaw", "j_chin_a03_ri", "j_chin_a03_le", "j_chin_a01_ri", "j_chin_a01_le", "j_chin_a01", "j_cheek_c05_ri", "j_cheek_c05_le", "j_cheek_c03_ri"
+    , "j_eye_a03_le", "j_eye_a01_ri", "j_eye_a01_le", "j_ear_b01_ri", "j_ear_b01_le", "j_ear_a03_ri", "j_ear_a03_le", "j_ear_a01_ri", "j_ear_a01_le"
+    , "j_eye_b01_ri", "j_eye_b01_le", "j_eye_a09_ri", "j_eye_a09_le", "j_eye_a07_ri", "j_eye_a07_le", "j_eye_a05_ri", "j_eye_a05_le", "j_eye_a03_ri"
+    , "j_eyelid_bot_05_le", "j_eyelid_bot_03_ri", "j_eyelid_bot_03_le", "j_eyelid_bot_01_ri", "j_eyelid_bot_01_le", "j_eye_b05_ri", "j_eye_b05_le", "j_eye_b03_ri", "j_eye_b03_le"
+    , "j_forehead_a01_le", "j_forehead_a01", "j_eyelid_top_07_ri", "j_eyelid_top_07_le", "j_eyelid_top_05_ri", "j_eyelid_top_05_le", "j_eyelid_top_03_ri", "j_eyelid_top_03_le", "j_eyelid_bot_05_ri"
+    , "j_forehead_b05_le", "j_forehead_b03_ri", "j_forehead_b03_le", "j_forehead_b01_ri", "j_forehead_b01_le", "j_forehead_b01", "j_forehead_a03_ri", "j_forehead_a03_le", "j_forehead_a01_ri"
+    , "j_jaw_a01_ri", "j_jaw_a01_le", "j_jaw_a01", "j_jaw", "j_forehead_b09_ri", "j_forehead_b09_le", "j_forehead_b07_ri", "j_forehead_b07_le", "j_forehead_b05_ri"
+    , "j_jaw_b01", "j_jaw_a09_ri", "j_jaw_a09_le", "j_jaw_a07_ri", "j_jaw_a07_le", "j_jaw_a05_ri", "j_jaw_a05_le", "j_jaw_a03_ri", "j_jaw_a03_le"
+    , "j_jaw_b09_le", "j_jaw_b07_ri", "j_jaw_b07_le", "j_jaw_b05_ri", "j_jaw_b05_le", "j_jaw_b03_ri", "j_jaw_b03_le", "j_jaw_b01_ri", "j_jaw_b01_le"
+    , "j_jaw_c07_le", "j_jaw_c05_ri", "j_jaw_c05_le", "j_jaw_c03_ri", "j_jaw_c03_le", "j_jaw_c01_ri", "j_jaw_c01_le", "j_jaw_c01", "j_jaw_b09_ri"
+    , "j_mouth_a07_le", "j_mouth_a05_ri", "j_mouth_a05_le", "j_mouth_a03_ri", "j_mouth_a03_le", "j_mouth_a01_ri", "j_mouth_a01_le", "j_mouth_a01", "j_jaw_c07_ri"
+    , "j_mouth_c01", "j_mouth_b03_ri", "j_mouth_b03_le", "j_mouth_b01_ri", "j_mouth_b01_le", "j_mouth_b01", "j_mouth_a09_ri", "j_mouth_a09_le", "j_mouth_a07_ri"
+    , "j_mouth_inner_le", "j_mouth_c07_ri", "j_mouth_c07_le", "j_mouth_c05_ri", "j_mouth_c05_le", "j_mouth_c03_ri", "j_mouth_c03_le", "j_mouth_c01_ri", "j_mouth_c01_le"
+    , "j_nose_a01_le", "j_nose_a01", "j_mouth_innerup_ri", "j_mouth_innerup_le", "j_mouth_innerup", "j_mouth_innerlow_ri", "j_mouth_innerlow_le", "j_mouth_innerlow", "j_mouth_inner_ri"
+    , "j_nose_c03_ri", "j_nose_c03_le", "j_nose_c01_ri", "j_nose_c01_le", "j_nose_c01", "j_nose_b01_ri", "j_nose_b01_le", "j_nose_b01", "j_nose_a01_ri"
+    , "j_uppercheek_a08_le", "j_uppercheek_a07_ri", "j_uppercheek_a07_le", "j_uppercheek_a05_ri", "j_uppercheek_a05_le", "j_uppercheek_a03_ri", "j_uppercheek_a03_le", "j_uppercheek_a01_ri", "j_uppercheek_a01_le"
+    , "j_uppercheek_a09_ri", "j_uppercheek_a09_le", "j_uppercheek_a08_ri"
+]
+
+def mark_cosmetic(bone, name):
+    bone.cosmetic = name in tbl_cosmetics
+
 
 def save_model(self, context, filepath, armature, objects,
                target_format,
@@ -534,6 +591,7 @@ def save_model(self, context, filepath, armature, objects,
                 bone_parent_index = -1
 
             model_bone = XModel.Bone(bone.name, bone_parent_index)
+            mark_cosmetic(model_bone, bone.name)
 
             # Is this the way to go?
             #  Or will it fix the root only, but mess up all other roll angles?
