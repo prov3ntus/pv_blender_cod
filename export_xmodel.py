@@ -67,7 +67,13 @@ def gather_exportable_objects(self, context,
 	'''  # nopep8
 
 	armature = None
-	obs = []
+	# If we're using the filter, the exporting operation doesn't
+	# export selected objects correctly, due to the filter check
+	# intercepting the mesh before it can be appended to exportable_objs
+	# This should default to false if armature is false. There is NO reason
+	# to use the armature filter if we're not exporting an armature. - pv
+	use_armature_filter = armature and use_armature_filter
+	exportable_objs = []
 
 	# Do a quick check to see if the active object is an armature
 	#  If it is - use it as the target armature
@@ -86,55 +92,66 @@ def gather_exportable_objects(self, context,
 		returns True if the object passed
 		returns false if the object failed the test
 		"""
-		for modifier in ob.modifiers:
+		for modifier in object.modifiers:
 			if modifier.type == 'ARMATURE' and modifier.object == armature:
 				return True
 		return False
 
-	for ob in bpy.data.objects:
+	if use_selection: _objects = bpy.context.selected_objects
+	else: _objects = bpy.data.objects
+
+	print( ( 'U' if use_selection else "Not u" ) + "sing selection", _objects )
+
+	for obj in _objects:
 		# Either grab the active armature - or the first armature in the scene
-		if (ob.type == 'ARMATURE' and use_armature and
-			(armature is None or ob == context.active_object) and
-				len(ob.data.bones) > 0):
-			armature = ob
+		if (obj.type == 'ARMATURE' and use_armature and
+			(armature is None or obj == context.active_object) and
+				len(obj.data.bones) > 0):
+			armature = obj
 			continue
 
-		if ob.type != 'MESH':
+		if obj.type != 'MESH':
 			continue
 
+		print( obj.name, "is a mesh" )
+
+		"""
 		if use_selection and not ob.select_get():
+			print( "Skipping object '%s' bc its not selected..." % ob.name )
 			continue
+		"""
 
-		if len(ob.material_slots) < 1:
+		if len(obj.material_slots) < 1:
 			if not quiet:
-				print("Object '%s' has no materials - skipping..." % ob.name)
+				print("Object '%s' has no materials - skipping..." % obj.name)
 			continue
 
 		if use_armature_filter:
 			if armature is None:
 				# Defer the check for this object until *after* we know
 				#  which armature we're using
-				secondary_objects.append(ob)
+				secondary_objects.append(obj)
 			else:
-				if test_armature_filter(ob):
-					obs.append(ob)
+				if test_armature_filter(obj):
+					exportable_objs.append(obj)
 			continue
-		obs.append(ob)
+		
+		exportable_objs.append(obj)
 
 	# Perform a secondary filter pass on all objects we missed
 	#  (before the armature was found)
 	if use_armature_filter:
-		for ob in secondary_objects:
-			if test_armature_filter(ob):
-				obs.append(ob)
+		for obj in secondary_objects:
+			if test_armature_filter(obj):
+				exportable_objs.append(obj)
 
 	# Fallback to exporting only the selected object if we couldn't find any
 	if armature is None:
-		if len(obs) == 0 and context.active_object is not None:
-			if ob.type == 'MESH':
-				obs = [context.active_object]
+		if len(exportable_objs) == 0 and context.active_object is not None:
+			if obj.type == 'MESH':
+				exportable_objs = [context.active_object]
 
-	return armature, obs
+	return armature, exportable_objs
 
 
 def material_gen_image_dict(material):
@@ -371,10 +388,10 @@ def save(self, context, filepath,
 
 		for ob in bpy.data.objects:
 			if ob.type == 'MESH':
-				context.scene.objects.active = ob
+				context.view_layer.objects.active = ob
 				break
-		else:
-			return "No mesh to export."
+			else:
+				return "No mesh to export."
 
 	# HACK: Force an update, so that bone tree is properly sorted
 	#  for hierarchy table export
@@ -391,6 +408,10 @@ def save(self, context, filepath,
 	# we'll use the selected mesh.
 	if len(objects) == 0:
 		return "There are no objects to export"
+
+	print( objects.__len__(), "object(s) made it out of gather_exportable_objects():" )
+	for obj in objects:
+		print( "-->", obj.name )
 
 	# Set up the argument keywords for save_model
 	keywords = {
@@ -410,9 +431,9 @@ def save(self, context, filepath,
 
 	# Export single model
 	if not use_armature_pose:
+		print( "Home stretch bby - not using armature pose so we export here" )
 		result = save_model(self, context, filepath,
 							armature, objects, **keywords)
-
 	# Export pose models
 	else:
 		# Remember frame to set it back after export
@@ -515,10 +536,17 @@ def save_model(self, context, filepath, armature, objects,
 	meshes = []
 	materials = []
 
-	for ob in objects:
+	# HACK - merge meshes into a single mesh so it exports properly
+	# I couldn't diagnose the issue, all the meshes were correctly being
+	# passed into PyCoD, CoDMayaTools probably merges them as well, might
+	# just be a PyCoD issue. So we join here.
+	previous_active = bpy.context.view_layer.objects.active
+	objects = [ shared.join_objects_temporarily( objects ) ]
+
+	for obj in objects:
 		# Set up modifiers whether to apply deformation or not
 		mod_states = []
-		for mod in ob.modifiers:
+		for mod in obj.modifiers:
 			mod_states.append(mod.show_viewport)
 			if mod.type == 'ARMATURE':
 				mod.show_viewport = (mod.show_viewport and
@@ -531,11 +559,12 @@ def save_model(self, context, filepath, armature, objects,
 		try:
 			# NOTE There's no way to get a 'render' depsgraph for now
 			depsgraph = context.evaluated_depsgraph_get()
-			mesh = ob.evaluated_get(depsgraph).to_mesh()
+			mesh = obj.evaluated_get(depsgraph).to_mesh()
 		except RuntimeError:
 			mesh = None
 
 		if mesh is None:
+			print( "RUNTIME ERROR getting object", obj.name + "'s mesh" )
 			continue
 
 		# Triangulate the mesh (Appears to keep split normals)
@@ -553,14 +582,15 @@ def save_model(self, context, filepath, armature, objects,
 			mesh.calc_normals_split()
 		else:
 			... # 4.1+ solution here
+			# Possible solution: use mesh.update( calc_edges=True )???
 
 		# Restore modifier settings
-		for i, mod in enumerate(ob.modifiers):
+		for i, mod in enumerate(obj.modifiers):
 			mod.show_viewport = mod_states[i]
 
 		# Skip invalid meshes
 		if len(mesh.vertices) < 3:
-			_skip_notice(ob.name, mesh.name, "Less than 3 vertices")
+			_skip_notice(obj.name, mesh.name, "Less than 3 vertices")
 			mesh.user_clear()
 			bpy.data.meshes.remove(mesh)
 			continue
@@ -578,7 +608,8 @@ def save_model(self, context, filepath, armature, objects,
 			bpy.data.meshes.remove(mesh)
 			continue"""
 
-		meshes.append(ExportMesh(ob, mesh, materials))
+		print( "Appending obj '%s' & mesh '%s' to meshes with all its mtl info..." % ( obj.name, mesh.name ) )
+		meshes.append(ExportMesh(obj, mesh, materials))
 
 	# Build the bone hierarchy & transform matrices
 	if use_armature and armature is not None:
@@ -591,7 +622,7 @@ def save_model(self, context, filepath, armature, objects,
 				else:
 					# TODO: Add some sort of useful warning for when we try
 					#  to export a bone that isn't actually in the bone table
-					print("WARNING")
+					print("WARNING - Bone", bone.parent.name, "is not in the bone table!" )
 					bone_parent_index = 0
 			else:
 				bone_parent_index = -1
@@ -626,12 +657,16 @@ def save_model(self, context, filepath, armature, objects,
 	# Generate bone weights for verts
 	if not use_weight_min:
 		use_weight_min_threshold = 0.0
+	
 	for mesh in meshes:
 		mesh.add_weights(bone_table, use_weight_min_threshold)
 		model.meshes.append(
-			mesh.to_xmodel_mesh(use_vertex_colors_alpha,
-								use_vertex_colors_alpha_mode,
-								global_scale))
+			mesh.to_xmodel_mesh(
+				use_vertex_colors_alpha,
+				use_vertex_colors_alpha_mode,
+				global_scale
+			)
+		)
 
 	missing_count = 0
 	for material in materials:
@@ -640,7 +675,7 @@ def save_model(self, context, filepath, armature, objects,
 			name = material.name
 		except:
 			name = "material" + str(missing_count)
-			missing_count = missing_count + 1
+			missing_count += 1
 
 		mtl = XModel.Material(name, "Lambert", imgs)
 		model.materials.append(mtl)
@@ -657,3 +692,12 @@ def save_model(self, context, filepath, armature, objects,
 
 	# Do we need this view_layer.update?
 	context.view_layer.update()
+
+	# So before the intitial iteration over
+	# `objects`, we ran join_and_copy() on it.
+	# Well, we now need to delete that copy
+	# ... kinda messy, but yea it works.
+	bpy.context.view_layer.objects.active = previous_active # Set this back
+	for _obj in objects:
+		bpy.data.objects.remove( _obj, do_unlink=True )
+	

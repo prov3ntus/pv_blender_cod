@@ -25,18 +25,17 @@ from bpy_extras.io_utils import ExportHelper, ImportHelper
 
 from bpy.utils import register_class, unregister_class
 
-import time
-import os
+import os, time
 
 bl_info = {
     "name": "pv_blender_cod",
-    "author": "prov3ntus, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-    "version": (0, 8, 2),
-    "blender": (3, 00, 0),
+    "author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
+    "version": (0, 8, 3),
+    "blender": (3, 0, 0),
     "location": "File > Import  |  File > Export",
     "description": "Import/Export XModels and XAnims",
-    "wiki_url": "https://github.com/shiversoftdev/BetterBetterBlenderCOD/",
-    "tracker_url": "https://github.com/shiversoftdev/BetterBetterBlenderCOD/issues/",
+    "wiki_url": "https://github.com/wa133d/pv_blender_cod/",
+    "tracker_url": "https://github.com/wa133d/pv_blender_cod/issues/",
     "support": "COMMUNITY",
     "category": "Import-Export"
 }
@@ -52,13 +51,13 @@ def update_submenu_mode(self, context):
 
 def update_scale_length(self, context):
     unit_map = {
-        'CENTI':    0.01,
-        'MILLI':    0.001,
-        'METER':    1.0,
+        'CENTI':    .01,
+        'MILLI':    .001,
+        'METER':    1.,
         'KILO':     1000.0,
-        'INCH':     0.0254,
-        'FOOT':     0.3048,
-        'YARD':     0.9144,
+        'INCH':     .0254,
+        'FOOT':     .3048,
+        'YARD':     .9144,
         'MILE':     1609.343994,
     }
 
@@ -247,7 +246,7 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         from . import import_xmodel
-        start_time = time.process_time()
+        start_time = time.perf_counter()
 
         keywords = self.as_keywords(ignore=("filter_glob",
                                             "check_existing",
@@ -257,7 +256,7 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 
         if not result:
             self.report({'INFO'}, "Import finished in %.4f sec." %
-                        (time.process_time() - start_time))
+                        (time.perf_counter() - start_time))
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, result)
@@ -390,7 +389,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         from . import import_xanim
-        start_time = time.process_time()
+        start_time = time.perf_counter()
 
         ignored_properties = ("filter_glob", "files", "apply_unit_scale")
         result = import_xanim.load(
@@ -401,7 +400,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 
         if not result:
             self.report({'INFO'}, "Import finished in %.4f sec." %
-                        (time.process_time() - start_time))
+                        (time.perf_counter() - start_time))
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, result)
@@ -597,17 +596,19 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
     )
 
     def execute(self, context):
+        print()
+        print( '=' * 10 + " EXPORT XMODEL " + '=' * 10 )
         from . import export_xmodel
-        start_time = time.process_time()
+        start_time = time.perf_counter()
 
         ignore = ("filter_glob", "check_existing")
         result = export_xmodel.save(self, context,
                                     **self.as_keywords(ignore=ignore))
 
         if not result:
-            self.report({'INFO'}, "Export finished in %.4f sec." %
-                        (time.process_time() - start_time))
-            print( "Export finished in %.4f sec." % (time.process_time() - start_time) )
+            _time = shared.timef( time.perf_counter() - start_time )
+            self.report( {'INFO'}, "Export finished in " + _time )
+            print( "Export finished in " + _time )
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, result)
@@ -860,14 +861,14 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 
     def execute(self, context):
         from . import export_xanim
-        start_time = time.process_time()
+        start_time = time.perf_counter()
         result = export_xanim.save(
             self,
             context,
             **self.as_keywords(ignore=("filter_glob", "check_existing")))
 
         if not result:
-            msg = "Export finished in %.4f sec." % (time.process_time() - start_time)
+            msg = "Export finished in " + shared.timef( time.perf_counter() - start_time )
             self.report({'INFO'}, msg)
             return {'FINISHED'}
         else:
