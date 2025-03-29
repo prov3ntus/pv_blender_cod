@@ -29,14 +29,14 @@ import time
 import os
 
 bl_info = {
-    "name": "BetterBlenderCoD",
-    "author": "Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-    "version": (0, 8, 0),
+    "name": "pv_blender_cod",
+    "author": "prov3ntus, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
+    "version": (0, 8, 2),
     "blender": (3, 00, 0),
     "location": "File > Import  |  File > Export",
     "description": "Import/Export XModels and XAnims",
-    "wiki_url": "https://github.com/marv7000/BetterBlenderCOD/",
-    "tracker_url": "https://github.com/marv7000/BetterBlenderCOD/issues/",
+    "wiki_url": "https://github.com/shiversoftdev/BetterBetterBlenderCOD/",
+    "tracker_url": "https://github.com/shiversoftdev/BetterBetterBlenderCOD/issues/",
     "support": "COMMUNITY",
     "category": "Import-Export"
 }
@@ -607,6 +607,7 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
         if not result:
             self.report({'INFO'}, "Export finished in %.4f sec." %
                         (time.process_time() - start_time))
+            print( "Export finished in %.4f sec." % (time.process_time() - start_time) )
             return {'FINISHED'}
         else:
             self.report({'ERROR'}, result)
