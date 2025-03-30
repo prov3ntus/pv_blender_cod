@@ -158,7 +158,7 @@ def load(self, context,
     model = XModel.Model(('.').join(model_name.split('.')[:-1]))
 
     ext = os.path.splitext(filepath)[-1].upper()
-    if ext == '.XMODEL_BIN':
+    if ext == '.xmodel_bin':
         LoadModelFile = model.LoadFile_Bin
     else:
         LoadModelFile = model.LoadFile_Raw
@@ -175,7 +175,7 @@ def load(self, context,
     for material in model.materials:
         mat = bpy.data.materials.get(material.name)
         if mat is None:
-            print("Adding material '%s'" % material.name)
+            #print("Adding material '%s'" % material.name)
             mat = bpy.data.materials.new(name=material.name)
 
             # mat.diffuse_shader = 'LAMBERT'
@@ -264,7 +264,7 @@ def load(self, context,
     for sub_mesh in model.meshes:
         if split_meshes is False:
             sub_mesh.name = "%s_mesh" % model.name
-        print("Creating mesh: '%s'" % sub_mesh.name)
+        #print("Creating mesh: '%s'" % sub_mesh.name)
         mesh = bpy.data.meshes.new(sub_mesh.name)
         bm = bmesh.new()
 

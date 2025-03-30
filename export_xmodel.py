@@ -100,7 +100,7 @@ def gather_exportable_objects(self, context,
 	if use_selection: _objects = bpy.context.selected_objects
 	else: _objects = bpy.data.objects
 
-	print( ( 'U' if use_selection else "Not u" ) + "sing selection", _objects )
+	#print( ( 'U' if use_selection else "Not u" ) + "sing selection", _objects )
 
 	for obj in _objects:
 		# Either grab the active armature - or the first armature in the scene
@@ -113,7 +113,7 @@ def gather_exportable_objects(self, context,
 		if obj.type != 'MESH':
 			continue
 
-		print( obj.name, "is a mesh" )
+		#print( obj.name, "is a mesh" )
 
 		"""
 		if use_selection and not ob.select_get():
@@ -148,7 +148,7 @@ def gather_exportable_objects(self, context,
 	# Fallback to exporting only the selected object if we couldn't find any
 	if armature is None:
 		if len(exportable_objs) == 0 and context.active_object is not None:
-			if obj.type == 'MESH':
+			if context.active_object.type == 'MESH':
 				exportable_objs = [context.active_object]
 
 	return armature, exportable_objs
@@ -262,7 +262,8 @@ class ExportMesh(object):
 			b_any_bad = self.fix_too_many_weights()
 			
 			if b_any_bad:
-				print("WARNING: Model had some verticies with too many weights. Removed the lowest until restrictions of 16 weights or less were met")
+				print("WARNING: Model had some verticies with too many weights."
+				"Removed the lowest until restrictions of 16 weights or less were met")
 
 
 	def gen_material_indices(self, model_materials):
@@ -274,46 +275,48 @@ class ExportMesh(object):
 				self.materials[material_index] = len(model_materials)
 				model_materials.append(material)
 
+
 	def to_xmodel_mesh( self,
-					    use_alpha=False,
-					    use_alpha_mode='PRIMARY',
-					    global_scale=1.0 ):
+						use_alpha=False,
+						use_alpha_mode='PRIMARY',
+						global_scale=1.0 ):
 
 		mesh = XModel.Mesh(self.mesh.name)
 
+		# calc_normals functions do not exist in blender 4.0/4.1+
+		# because they re-calculate it when needed automatically
 		if bpy.app.version < ( 4, 1, 0 ):
 			if self.mesh.has_custom_normals:
-				self.mesh.calc_normals_split()
-			else:
-				self.mesh.calc_normals()
-		else:
-			... # 4.1+ solution here
+				self.mesh.calc_normals_split() # Taken out in 4.1
+			elif bpy.app.version < ( 4, 0, 0 ):
+				self.mesh.calc_normals() # Taken out in 4.0
 
 		uv_layer = self.mesh.uv_layers.active
 		vc_layer = self.mesh.vertex_colors.active
 
 		# Get the vertex layer to use for alpha
 		vca_layer = None
-		if not use_alpha:
-			vca_layer = None
-		elif use_alpha_mode == 'PRIMARY':
-			vca_layer = vc_layer
-		elif use_alpha_mode == 'SECONDARY':
-			vca_layer = None
-			# Get the first vertex color layer that isn't active
-			for layer in self.mesh.vertex_colors:
-				if layer is not vc_layer:
-					vca_layer = layer
-					break
-		
-		#print( "VCA LAYER:", vca_layer )
+		if use_alpha:
+			if use_alpha_mode == 'PRIMARY':
+				vca_layer = vc_layer
+			elif use_alpha_mode == 'SECONDARY':
+				for layer in self.mesh.vertex_colors:
+					if layer is not vc_layer:
+						vca_layer = layer
+						break
+
 		alpha_default = 1.0
 
+		# Apply transformation matrix to vertices
 		for vert_index, vert in enumerate(self.mesh.vertices):
 			mesh_vert = XModel.Vertex()
-			mesh_vert.offset = tuple(vert.co * global_scale)
+			transformed_pos = self.matrix @ vert.co  # Apply matrix transform
+			mesh_vert.offset = tuple(transformed_pos * global_scale)
 			mesh_vert.weights = self.weights[vert_index]
 			mesh.verts.append(mesh_vert)
+
+		# Extract 3x3 rotation matrix from transformation matrix (ignoring translation)
+		normal_transform = self.matrix.to_3x3()
 
 		for polygon in self.mesh.polygons:
 			face = XModel.Face(0, 0)
@@ -325,28 +328,30 @@ class ExportMesh(object):
 				# Get UV coordinates
 				uv = uv_layer.data[loop_index].uv
 
+				# Get vertex colors (with optional alpha channel)
 				if vca_layer is not None:
-					vert_color = vca_layer.data[loop_index].color  # This gives Vector((R, G, B, A)) from a plugin that adds alpha support
+					vert_color = vca_layer.data[loop_index].color
 					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else alpha_default)
-					#print( "RGBA for this loop:", rgba )
 				elif vc_layer is not None:
-					vert_color = vc_layer.data[loop_index].color  # This gives Vector((R, G, B, A)) if Blender supports alpha
+					vert_color = vc_layer.data[loop_index].color
 					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else alpha_default)
 				else:
 					rgba = (1.0, 1.0, 1.0, alpha_default)
 
+				# Apply transformation to normal
+				transformed_normal = normal_transform @ loop.normal
+				transformed_normal.normalize()  # Ensure normal stays unit-length
+
 				vert = XModel.FaceVertex(
 					loop.vertex_index,
-					loop.normal,
+					transformed_normal, # Use transformed normal
 					rgba,
 					(uv.x, 1.0 - uv.y)
 				)
 				face.indices[i] = vert
 
 			# Fix winding order
-			tmp = face.indices[2]
-			face.indices[2] = face.indices[1]
-			face.indices[1] = tmp
+			face.indices[1], face.indices[2] = face.indices[2], face.indices[1]
 
 			mesh.faces.append(face)
 
@@ -355,7 +360,7 @@ class ExportMesh(object):
 
 
 def save(self, context, filepath,
-		target_format='XMODEL_EXPORT',
+		target_format='xmodel_export',
 		version='6',
 		use_selection=False,
 		global_scale=1.0,
@@ -409,9 +414,9 @@ def save(self, context, filepath,
 	if len(objects) == 0:
 		return "There are no objects to export"
 
-	print( objects.__len__(), "object(s) made it out of gather_exportable_objects():" )
-	for obj in objects:
-		print( "-->", obj.name )
+	# print( objects.__len__(), "object(s) made it out of gather_exportable_objects():" )
+	# for obj in objects:
+	# 	print( "-->", obj.name )
 
 	# Set up the argument keywords for save_model
 	keywords = {
@@ -431,7 +436,7 @@ def save(self, context, filepath,
 
 	# Export single model
 	if not use_armature_pose:
-		print( "Home stretch bby - not using armature pose so we export here" )
+		#print( "Not using armature pose so we export here" )
 		result = save_model(self, context, filepath,
 							armature, objects, **keywords)
 	# Export pose models
@@ -531,17 +536,17 @@ def save_model(self, context, filepath, armature, objects,
 	use_armature_pose = False
 
 	scene = context.scene
-	model = XModel.Model("$export")
+	model = XModel.Model( "$pv_blender_cod_export" )
 
-	meshes = []
+	meshes: list[ ExportMesh ] = []
 	materials = []
 
 	# HACK - merge meshes into a single mesh so it exports properly
 	# I couldn't diagnose the issue, all the meshes were correctly being
 	# passed into PyCoD, CoDMayaTools probably merges them as well, might
 	# just be a PyCoD issue. So we join here.
-	previous_active = bpy.context.view_layer.objects.active
-	objects = [ shared.join_objects_temporarily( objects ) ]
+	#previous_active = bpy.context.view_layer.objects.active
+	#objects = [ shared.join_objects_temporarily( objects ) ]
 
 	for obj in objects:
 		# Set up modifiers whether to apply deformation or not
@@ -564,7 +569,7 @@ def save_model(self, context, filepath, armature, objects,
 			mesh = None
 
 		if mesh is None:
-			print( "RUNTIME ERROR getting object", obj.name + "'s mesh" )
+			print( "RUNTIME ERROR getting object \"%s\"'s mesh" % obj.name )
 			continue
 
 		# Triangulate the mesh (Appears to keep split normals)
@@ -578,11 +583,10 @@ def save_model(self, context, filepath, armature, objects,
 		#if use_split_normals:
 		#	mesh.calc_normals_split()
 
+		# Normal calculations are done automatically in Blender 4.1+
 		if bpy.app.version < ( 4, 1, 0 ):
-			mesh.calc_normals_split()
-		else:
-			... # 4.1+ solution here
-			# Possible solution: use mesh.update( calc_edges=True )???
+			mesh.calc_normals_split() # Taken out in 4.1
+
 
 		# Restore modifier settings
 		for i, mod in enumerate(obj.modifiers):
@@ -608,8 +612,13 @@ def save_model(self, context, filepath, armature, objects,
 			bpy.data.meshes.remove(mesh)
 			continue"""
 
-		print( "Appending obj '%s' & mesh '%s' to meshes with all its mtl info..." % ( obj.name, mesh.name ) )
+		# print( "Appending obj '%s' to meshes with all its mtl info..." % obj.name )
 		meshes.append(ExportMesh(obj, mesh, materials))
+
+	# print( "Export mesh matrices:" )
+	# for _mesh in meshes:
+	# 	loc, rot, sc = _mesh.matrix.decompose()
+	# 	print( ( "--> Name: '%s'\n\tLocation: '{0}'\n\tRotation: '{1}'\n\tScale '{2}'" % _mesh.object.name ).format( loc, rot, sc ) )
 
 	# Build the bone hierarchy & transform matrices
 	if use_armature and armature is not None:
@@ -680,8 +689,12 @@ def save_model(self, context, filepath, armature, objects,
 		mtl = XModel.Material(name, "Lambert", imgs)
 		model.materials.append(mtl)
 
+	# print( "Yo, PyCoD xmodel meshes are:" )
+	# for _mesh in model.meshes:
+	# 	print( "--> Name: '%s' | Vert count: %i | Tri count: %i" % ( _mesh.name, _mesh.verts.__len__(), _mesh.faces.__len__() ) )
+
 	header_msg = shared.get_metadata_string(filepath)
-	if target_format == 'XMODEL_BIN':
+	if target_format == 'xmodel_bin':
 		model.WriteFile_Bin(filepath, version=version,
 							header_message=header_msg)
 	else:
@@ -697,7 +710,7 @@ def save_model(self, context, filepath, armature, objects,
 	# `objects`, we ran join_and_copy() on it.
 	# Well, we now need to delete that copy
 	# ... kinda messy, but yea it works.
-	bpy.context.view_layer.objects.active = previous_active # Set this back
-	for _obj in objects:
-		bpy.data.objects.remove( _obj, do_unlink=True )
+	#bpy.context.view_layer.objects.active = previous_active # Set this back
+	#for _obj in objects:
+	#	bpy.data.objects.remove( _obj, do_unlink=True )
 	
