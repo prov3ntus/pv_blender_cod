@@ -14,8 +14,13 @@ their API and not giving alternatives to deprecated functions.
 
 Forked this originally for Xela, so he could export alpha vertex colours for Blender 3.0.
 
-Alpha vertex colours are hard to add in Blender. Xela was using Blender 3.0. As of now, the only thing my fork does differently from Serious' is 
-it applies a vertex colour set that's been placed by a plugin if it exists, and uses that one instead when exporting.
+Alpha vertex colours are hard to add in Blender. Xela was using Blender 3.0.
+
+My fork of BlenderCoD applies the first vertex colour set that's been placed by a plugin (if it can find one), 
+and uses that one instead when exporting. It also fixes the "Export selected only" checkbox when exporting an xmodel.
+
+Most stable version to use is Blender 3.0.0. However other versions should be okay. I've not teseted any other features
+other than the xmodel exporter, so if you encounter any issues, please let me know and I'll fix it as soon as I can!
 
 The plugin we used to add alpha vtx colours was a 3 year old version of
 [VertexColorPlus](https://github.com/oRazeD/VertexColorsPlus/) that supported Blender 3.0 still.
