@@ -30,10 +30,13 @@ import os, time
 from . import PyCoD, export_xmodel, export_xanim, import_xmodel, import_xanim, shared, updater
 from .PyCoD import sanim, xmodel, xanim, xbin
 
+_tkn = updater.LOCAL_VERSION.split( '.' )
+_ver = ( _tkn[ 0 ], _tkn[ 1 ], _tkn[ 2 ] )
+
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": (0, 8, 5), # IF EDITING THIS MAKE SURE TO CHANGE updater.LOCAL_VERSION IN updater.py SO UPDATING WORKS CORRECTLY
+	"version": _ver,
 	"blender": (3, 0, 0),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",

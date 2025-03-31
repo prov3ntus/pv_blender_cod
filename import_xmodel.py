@@ -157,7 +157,7 @@ def load(self, context,
     model_name = os.path.basename(filepath)
     model = XModel.Model(('.').join(model_name.split('.')[:-1]))
 
-    ext = os.path.splitext(filepath)[-1].upper()
+    ext = os.path.splitext(filepath)[-1].lower()
     if ext == '.xmodel_bin':
         LoadModelFile = model.LoadFile_Bin
     else:

@@ -164,8 +164,8 @@ def load_anim(self, context, armature,
 
     # Load the anim
     anim = XAnim.Anim()
-    ext = os.path.splitext(filepath)[-1].upper()
-    if ext == '.XANIM_BIN':
+    ext = os.path.splitext(filepath)[-1].lower()
+    if ext == '.xanim_bin':
         anim.LoadFile_Bin(filepath)
     else:
         anim.LoadFile_Raw(filepath, use_notetrack_file)
