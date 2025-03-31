@@ -12,6 +12,7 @@ GITHUB_REPO = "w4133d/pv_blender_cod"
 ADDON_NAME = "_pv_blender_cod"
 BLENDER_ADDONS_PATH = bpy.utils.user_resource('SCRIPTS', path="addons")
 DOWNLOAD_URL = None
+AUTO_UPDATE_PASSED = False
 
 UPDATE_FAILED = -1
 UPDATE_SUCCESS = 0
@@ -150,6 +151,10 @@ class SimpleDialogConfirmOperator( bpy.types.Operator ):
 		global update_dialog
 		if update_dialog: update_dialog.__apply_dont_ask_again__()
 
+		global AUTO_UPDATE_PASSED
+		
+		AUTO_UPDATE_PASSED = True
+
 		self.report( { 'INFO' }, "Updating BlenderCoD..." )
 		update()
 		
@@ -171,6 +176,10 @@ class CancelDialogOperator(bpy.types.Operator):
 
 		# Damn... well fuck you, then.
 		bpy.ops.wm.cancel_response( 'INVOKE_DEFAULT' )
+
+		global AUTO_UPDATE_PASSED
+		
+		AUTO_UPDATE_PASSED = True
 
 		# return {'CANCELLED'} # This will run self.cancel()
 		return { 'FINISHED' }
@@ -200,6 +209,10 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 			self.report( { 'INFO' }, "Updating BlenderCoD..." )
 			update()
 		
+		global AUTO_UPDATE_PASSED
+		
+		AUTO_UPDATE_PASSED = True
+
 		return {'FINISHED'}
 
 	def invoke(self, context, event):
@@ -220,6 +233,10 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 			shared.plugin_preferences.auto_update_enabled = False
 			self.report({'INFO'}, "BlenderCoD auto-updates disabled. - pv")
 		"""
+		global AUTO_UPDATE_PASSED
+		
+		AUTO_UPDATE_PASSED = True
+
 		return None
 
 	def __apply_dont_ask_again__( self ):
@@ -232,6 +249,8 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 
 	def draw( self, context ):
+		global AUTO_UPDATE_PASSED
+
 		layout = self.layout
 		layout.scale_y = 1.2
 
@@ -245,14 +264,16 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 		layout.label(
 			text = "Would you like to update now?",
 		)
-		layout.label(
-			text = "You can always check for BlenderCoD updates in Preferences > Addons.",
-		)
-		
-		# Checkbox inside dialog
-		layout.prop( self, "dont_ask_again" )
 
-		layout.separator()
+		if shared.plugin_preferences.auto_update_enabled and not AUTO_UPDATE_PASSED:
+			layout.label(
+				text = "You can always check for BlenderCoD updates in Preferences > Addons.",
+			)
+			
+			# Checkbox inside dialog
+			layout.prop( self, "dont_ask_again" )
+
+			layout.separator()
 
 		vbox = layout.row()
 		vbox.operator(
