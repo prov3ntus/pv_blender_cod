@@ -33,7 +33,7 @@ from .PyCoD import sanim, xmodel, xanim, xbin
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": (0, 8, 4), # IF EDITING THIS MAKE SURE TO CHANGE updater.LOCAL_VERSION IN updater.py SO UPDATING WORKS CORRECTLY
+	"version": (0, 8, 5), # IF EDITING THIS MAKE SURE TO CHANGE updater.LOCAL_VERSION IN updater.py SO UPDATING WORKS CORRECTLY
 	"blender": (3, 0, 0),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",
@@ -51,7 +51,7 @@ def register():
 	for cls in classes:
 		bpy.utils.register_class(cls)
 
-	# __name__ is the same as the package name (io_scene_cod)
+	# __name__ is the same as the package name (pv_blender_cod)
 	preferences = bpy.context.preferences.addons[__name__].preferences
 
 	# Each of these appended functions is executed every time the
@@ -70,7 +70,20 @@ def register():
 	# Set the global 'plugin_preferences' variable for each module
 	shared.plugin_preferences = preferences
 
+	# Check for update if auto-update is enabled
+	if preferences.auto_update_enabled:
+		updated = updater.check_for_update()
+
+		if updated == updater.UPDATE_FAILED:
+			print( "[ pv_blender_cod ]\tpv_blender_cod update failed." )
+		elif updated == updater.UPDATE_AVAILABLE:
+			bpy.app.timers.register( updater.delayed_update_prompt, first_interval = 1.0 )
+		elif updated == updater.UPDATE_UPTODATE:
+			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date. (v{updater.LOCAL_VERSION})" )
+	
+
 def unregister():
+
 	# You have to try to unregister both types of the menus here because
 	# the preferences will have already been changed by the time this func runs
 	bpy.types.TOPBAR_MT_file_import.remove(menu_func_xmodel_import)
@@ -116,7 +129,7 @@ class BlenderCoD_Preferences(AddonPreferences):
 		name="Group Import/Export Buttons",
 		default=False,
 		update=update_submenu_mode
-	)
+	) # type: ignore
 
 	unit_enum: EnumProperty(
 		items=(('CENTI', "Centimeters", ""),
@@ -134,7 +147,7 @@ class BlenderCoD_Preferences(AddonPreferences):
 					"no units are specified in the scene presets",
 		default='INCH',
 		update=update_scale_length
-	)
+	) # type: ignore
 
 	scale_length: FloatProperty(
 		name="Unit Scale",
@@ -149,13 +162,13 @@ class BlenderCoD_Preferences(AddonPreferences):
 		precision=6,
 		step=1,
 		default=1.0
-	)
+	) # type: ignore
 
 	auto_update_enabled: BoolProperty(
 		name = "Auto-update When Blender Starts",
 		description = "Automatically check for pv_blender_cod updates when Blender starts",
 		default = True
-	)
+	) # type: ignore
 
 	def draw(self, context):
 		layout = self.layout
@@ -1134,7 +1147,11 @@ classes = (
 	COD_MT_export_xanim,
 	COD_MT_import_submenu,
 	COD_MT_export_submenu,
-	updater.UpdateOperator
+	updater.UpdateOperator,
+	updater.ConfirmUpdateOperator,
+	updater.SimpleDialogConfirmOperator,
+	updater.CancelDialogOperator,
+	updater.ISeeHowItIsOperator
 )
 
 

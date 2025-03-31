@@ -310,7 +310,7 @@ class ExportMesh(object):
 		# Apply transformation matrix to vertices
 		for vert_index, vert in enumerate(self.mesh.vertices):
 			mesh_vert = XModel.Vertex()
-			transformed_pos = self.matrix @ vert.co  # Apply matrix transform
+			transformed_pos = self.matrix @ vert.co # Apply matrix transform
 			mesh_vert.offset = tuple(transformed_pos * global_scale)
 			mesh_vert.weights = self.weights[vert_index]
 			mesh.verts.append(mesh_vert)
