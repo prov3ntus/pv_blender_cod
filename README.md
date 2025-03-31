@@ -8,7 +8,7 @@ The addon in blender is called "pv_blender_cod" in the addons window.
 
 It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon made by Serious.
 
-Forked this originally for [Xela](https://discord.gg/yMGJBCBJUV), so he could export alpha vertex colours for Blender 3.0.
+Forked this originally for [Xela]([https://discord.gg/yMGJBCBJUV](https://x.com/MrXeIa), so he could export alpha vertex colours for Blender 3.0.
 
 Alpha vertex colours were not possible to export in blender before (at least in 3.0).
 
