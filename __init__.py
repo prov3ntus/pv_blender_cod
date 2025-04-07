@@ -17,6 +17,7 @@
 # ##### END GPL LICENSE BLOCK #####
 
 
+import traceback
 import bpy
 from bpy.types import Operator, AddonPreferences
 from bpy.props import (BoolProperty, IntProperty, FloatProperty,
@@ -30,14 +31,12 @@ import os, time
 from . import PyCoD, export_xmodel, export_xanim, import_xmodel, import_xanim, shared, updater
 from .PyCoD import sanim, xmodel, xanim, xbin
 
-_tkn = updater.LOCAL_VERSION.split( '.' )
-_ver = ( _tkn[ 0 ], _tkn[ 1 ], _tkn[ 2 ] )
 
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": _ver,
-	"blender": (3, 0, 0),
+	"version": ( 0, 8, 7 ),
+	"blender": ( 3, 0, 0 ),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",
 	"wiki_url": "https://github.com/w4133d/pv_blender_cod/",
@@ -45,6 +44,8 @@ bl_info = {
 	"support": "COMMUNITY",
 	"category": "Import-Export"
 }
+
+
 
 print()
 print( "=" * 20, "BlenderCoD Init - pv", "=" * 20 )
@@ -75,14 +76,16 @@ def register():
 
 	# Check for update if auto-update is enabled
 	if preferences.auto_update_enabled:
-		updated = updater.check_for_update()
+		update_result = updater.check_for_update()
 
-		if updated == updater.UPDATE_FAILED:
+		if update_result == updater.UPDATE_FAILED:
 			print( "[ pv_blender_cod ]\tpv_blender_cod update failed." )
-		elif updated == updater.UPDATE_AVAILABLE:
+		elif update_result == updater.UPDATE_AVAILABLE:
 			bpy.app.timers.register( updater.delayed_update_prompt, first_interval = 1.0 )
-		elif updated == updater.UPDATE_UPTODATE:
+		elif update_result == updater.UPDATE_UPTODATE:
 			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date. (v{updater.LOCAL_VERSION})" )
+	
+	# do imp updates here? add to a function?? - pv
 	
 
 def unregister():
@@ -337,6 +340,8 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 	)
 
 	def execute(self, context):
+		self.report( {'INFO'}, "Importing XModel..." )
+
 		from . import import_xmodel
 		start_time = time.perf_counter()
 
@@ -348,12 +353,18 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 
 		if not result:
 			_time = shared.timef( time.perf_counter() - start_time )
-			self.report( {'INFO'}, "Import finished in %s." % _time )
+			self.report( { 'INFO' }, "Import finished in %s." % _time )
 			print( "Import finished in %s." % _time )
-			return {'FINISHED'}
+			_ret_val = { 'FINISHED' }
 		else:
-			self.report( {'ERROR'}, result )
-			return {'CANCELLED'}
+			self.report( { 'ERROR' }, result )
+			_ret_val = { 'CANCELLED' }
+		
+		shared.show_warnings()
+		return _ret_val
+
+
+
 
 	@classmethod
 	def poll(self, context):
@@ -481,10 +492,12 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 	)
 
 	def execute(self, context):
+		self.report( { 'INFO' }, "Importing XAnim..." )
+
 		from . import import_xanim
 		start_time = time.perf_counter()
 
-		ignored_properties = ("filter_glob", "files", "apply_unit_scale")
+		ignored_properties = ( "filter_glob", "files", "apply_unit_scale" )
 		result = import_xanim.load(
 			self,
 			context,
@@ -493,12 +506,17 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 
 		if not result:
 			_time = shared.timef( time.perf_counter() - start_time )
-			self.report( {'INFO'}, "Import finished in %s." % _time )
+			self.report( { 'INFO' }, "Import finished in %s." % _time )
 			print( "Import finished in %s." % _time )
-			return {'FINISHED'}
+
+			_ret_val = { 'FINISHED' }
 		else:
-			self.report( {'ERROR'}, result )
-			return {'CANCELLED'}
+			self.report( { 'ERROR' }, result )
+
+			_ret_val = { 'CANCELLED' }
+
+		shared.show_warnings()
+		return _ret_val
 
 	@classmethod
 	def poll(self, context):
@@ -542,7 +560,8 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 
 	filename_ext = ".xmodel_export"
 	filter_glob: StringProperty(
-		default="*.xmodel_export;*.xmodel_bin", options={'HIDDEN'})
+		default="*.xmodel_export;*.xmodel_bin", options={'HIDDEN'}
+	) # type: ignore
 
 	# List of operator properties, the attributes will be assigned
 	# to the class instance from the operator settings before calling.
@@ -576,29 +595,30 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		name="Selection only",
 		description=("Export selected meshes only "
 					 "(object or weight paint mode)"),
-		default=False
-	)
+		default=True
+	) # type: ignore
 
 	global_scale: FloatProperty(
 		name="Scale",
 		min=0.001, max=1000.0,
 		default=1.0,
-	)
+	) # type: ignore
 
 	apply_unit_scale: BoolProperty(
 		name="Apply Unit",
 		description="Scale all data according to current Blender size,"
 					" to match CoD units",
-		default=True,
-	)
+		default=False,
+	) # type: ignore
 
 	use_vertex_colors: BoolProperty(
 		name="Vertex Colors",
 		description=("Export vertex colors "
-					 "(if disabled, white color will be used)"),
+					 "(if disabled, black color will be used)"),
 		default=True
-	)
+	) # type: ignore
 
+	"""
 	#  White is 1 (opaque), black 0 (invisible)
 	use_vertex_colors_alpha: BoolProperty(
 		name="Calculate Alpha",
@@ -606,7 +626,8 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 					 "by averaging the RGB color values together "
 					 "(if disabled, 1.0 is used)"),
 		default=False
-	)
+	) # type: ignore
+	"""
 
 	use_vertex_colors_alpha_mode: EnumProperty(
 		name="Vertex Alpha Source Layer",
@@ -618,7 +639,7 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 				 "(If only one layer is present, the active layer is used)")),
 			   ),
 		default='PRIMARY'
-	)
+	) # type: ignore
 
 	use_vertex_cleanup: BoolProperty(
 		name="Clean Up Vertices",
@@ -626,14 +647,16 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 					 "Skips vertices which aren't used by any face "
 					 "and updates references."),
 		default=False
-	)
+	) # type: ignore
 
 	apply_modifiers: BoolProperty(
 		name="Apply Modifiers",
 		description="Apply all mesh modifiers (except Armature)",
-		default=False
-	)
+		default=True
+	) # type: ignore
 
+	# Unused
+	"""
 	modifier_quality: EnumProperty(
 		name="Modifier Quality",
 		description="The quality at which to apply mesh modifiers",
@@ -642,43 +665,21 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 			   ),
 		default='PREVIEW'
 	)
+	"""
 
 	use_armature: BoolProperty(
 		name="Armature",
 		description=("Export bones "
 					 "(if disabled, only a 'tag_origin' bone will be written)"),  # nopep8
-		default=True
-	)
-
-	"""
-	use_armature_pose : BoolProperty(
-		name="Pose animation to models",
-		description=("Export meshes with Armature modifier applied "
-					 "as a series of xmodel_export files"),
 		default=False
-	)
-
-	frame_start : IntProperty(
-		name="Start",
-		description="First frame to export",
-		default=1,
-		min=0
-	)
-
-	frame_end : IntProperty(
-		name="End",
-		description="Last frame to export",
-		default=250,
-		min=0
-	)
-	"""
+	) # type: ignore
 
 	use_weight_min: BoolProperty(
 		name="Minimum Bone Weight",
 		description=("Try this if you get 'too small weight' "
 					 "errors when converting"),
 		default=False,
-	)
+	) # type: ignore
 
 	use_weight_min_threshold: FloatProperty(
 		name="Threshold",
@@ -687,26 +688,47 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		min=0.0,
 		max=1.0,
 		precision=6
-	)
+	) # type: ignore
 
 	def execute(self, context):
+		self.report( { 'INFO' }, "Exporting XModel..." )
+
 		print()
 		print( '=' * 10 + " EXPORT XMODEL " + '=' * 10 )
+
 		from . import export_xmodel
 		start_time = time.perf_counter()
 
-		ignore = ("filter_glob", "check_existing")
-		result = export_xmodel.save(self, context,
-									**self.as_keywords(ignore=ignore))
+		ignore = ( "filter_glob", "check_existing" )
+		result = None
+		try:
+			result = export_xmodel.save(
+				self, context,
+				**self.as_keywords( ignore=ignore )
+			)
+		except Exception as _e:
+			shared.add_warning(
+				"An error occured while exporting the XModel!\n"
+				"Please go to 'Blender Preferences' -> 'Add-ons' -> 'pv_blender_cod' -> 'Report a Bug' and let me know!"
+				"\nError:\n" + _e.__str__()
+			)
 
+			traceback.print_exc()
+		
 		if not result:
 			_time = shared.timef( time.perf_counter() - start_time )
-			self.report( {'INFO'}, "Export finished in %s." % _time )
-			print( "Export finished in %s." % _time )
-			return {'FINISHED'}
+
+			self.report( { 'INFO' }, f"Export finished in { _time }." )
+			print( f"Export finished in { _time }." )
+
+			_ret_val = { 'FINISHED' }
 		else:
-			self.report({'ERROR'}, result)
-			return {'CANCELLED'}
+			# self.report( { 'ERROR' }, result )
+			self.report( { 'INFO' }, result )
+			_ret_val = { 'CANCELLED' }
+		
+		shared.show_warnings()
+		return _ret_val
 
 	@classmethod
 	def poll(self, context):
@@ -786,7 +808,7 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		sub.prop(self, 'apply_modifiers')
 		sub = sub.row()
 		sub.enabled = self.apply_modifiers
-		sub.prop(self, 'modifier_quality', expand=True)
+		#sub.prop(self, 'modifier_quality', expand=True)
 
 		# layout.prop(self, 'custom_normals')
 
@@ -795,10 +817,9 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 			row.prop(self, 'use_vertex_colors')
 			sub = row.split()
 			sub.enabled = self.use_vertex_colors
-			sub.prop(self, 'use_vertex_colors_alpha')
+			#sub.prop(self, 'use_vertex_colors_alpha')
 			sub = layout.split()
-			sub.enabled = (self.use_vertex_colors and
-						   self.use_vertex_colors_alpha)
+			sub.enabled = self.use_vertex_colors #and self.use_vertex_colors_alpha
 			sub = sub.split(factor=0.5)
 			sub.label(text="Vertex Alpha Layer")
 			sub.prop(self, 'use_vertex_colors_alpha_mode', text="")
@@ -953,21 +974,26 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		max=1000
 	)
 
-	def execute(self, context):
+	def execute( self, context ):
+		self.report( { 'INFO' }, "Exporting XAnim..." )
+
 		from . import export_xanim
 		start_time = time.perf_counter()
 		result = export_xanim.save(
 			self,
 			context,
-			**self.as_keywords(ignore=("filter_glob", "check_existing")))
+			**self.as_keywords( ignore = ( "filter_glob", "check_existing" ) ) )
 
 		if not result:
 			msg = "Export finished in %s." % shared.timef( time.perf_counter() - start_time )
-			self.report({'INFO'}, msg)
-			return {'FINISHED'}
+			self.report( { 'INFO' }, msg )
+			_ret_val = { 'FINISHED' }
 		else:
-			self.report({'ERROR'}, result)
-			return {'CANCELLED'}
+			self.report( { 'ERROR' }, result )
+			_ret_val = { 'CANCELLED' }
+		
+		shared.show_warnings()
+		return _ret_val
 
 	@classmethod
 	def poll(self, context):
@@ -1152,9 +1178,9 @@ classes = (
 	COD_MT_export_submenu,
 	updater.UpdateOperator,
 	updater.ConfirmUpdateOperator,
-	updater.SimpleDialogConfirmOperator,
 	updater.CancelDialogOperator,
-	updater.ISeeHowItIsOperator
+	updater.ISeeHowItIsOperator,
+	shared.PV_OT_message_list_popup,
 )
 
 

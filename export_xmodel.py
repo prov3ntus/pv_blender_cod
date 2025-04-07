@@ -32,6 +32,22 @@ def _skip_notice(ob_name, mesh_name, notice):
 	print("\nSkipped object \"%s\" (mesh \"%s\"): %s" % vargs)
 
 
+def uv_layer_is_empty( uv_layer ):
+	return all( _lyr.uv.length_squared == 0.0 for _lyr in uv_layer.data )
+
+
+def needs_triangulation( mesh ):
+	"""Returns `True` if `mesh` has any polygons w/ a vert count greater than 3.
+
+	Args:
+		mesh ( bpy.objects.Mesh ): The mesh to check
+	"""
+	for poly in mesh.polygons:
+		if len( poly.vertices ) > 3:
+			return True
+	return False
+
+
 def mesh_triangulate(mesh, vertex_cleanup):
 	'''
 	Based on the function in export_obj.py
@@ -49,11 +65,23 @@ def mesh_triangulate(mesh, vertex_cleanup):
 	mesh.update(calc_edges=True)
 
 
+def validate_mtl_name( _mtl_name: str ):
+	"""Replaces any non-ascii / non-alpha-numeric character
+	with an underscore `_`, as well as `lower()`s the mtl name.
+	It's baffling how no maintainer has added this before now.
+		- pv [ 2025/04/07 ]
+	"""
+
+	# Remove any non-(ascii/alpha-numeric) characters
+	_mtl_name = ''.join( c if c.isascii() and c.isalnum() else '_' for c in _mtl_name  )
+	
+	return _mtl_name.lower()
+
+
 def gather_exportable_objects(self, context,
 							  use_selection,
 							  use_armature,
-							  use_armature_filter=True,
-							  quiet=True):
+							  use_armature_filter=True ):
 	'''
 	Gather relevent objects for export
 	Returns a tuple in the format (armature, [objects])
@@ -74,11 +102,12 @@ def gather_exportable_objects(self, context,
 	# to use the armature filter if we're not exporting an armature. - pv
 	use_armature_filter = armature and use_armature_filter
 	exportable_objs = []
+	errored_objs = []
 
 	# Do a quick check to see if the active object is an armature
 	#  If it is - use it as the target armature
-	if (context.active_object is not None and
-			context.active_object.type == 'ARMATURE'):
+	if( context.active_object is not None
+		and context.active_object.type == 'ARMATURE' ):
 		armature = context.active_object
 
 	# A list of objects we need to check *after* we find an armature
@@ -97,12 +126,16 @@ def gather_exportable_objects(self, context,
 				return True
 		return False
 
+
 	if use_selection: _objects = bpy.context.selected_objects
 	else: _objects = bpy.data.objects
 
 	#print( ( 'U' if use_selection else "Not u" ) + "sing selection", _objects )
 
+	print( "[ DEBUG ] Checking", _objects.__len__(), "object(s):" )
 	for obj in _objects:
+		print( f"[ DEBUG ] Checking '{ obj.name }' for export..." )
+
 		# Either grab the active armature - or the first armature in the scene
 		if (obj.type == 'ARMATURE' and use_armature and
 			(armature is None or obj == context.active_object) and
@@ -111,45 +144,61 @@ def gather_exportable_objects(self, context,
 			continue
 
 		if obj.type != 'MESH':
+			print(
+				f"[ pv_blender_cod ] Skipping object '{ obj.name }' of type '{ obj.type }' as it's not "
+				"a mesh or an armature (or we're not exporting armatures)..."
+			)
+			errored_objs.append( obj )
 			continue
 
-		#print( obj.name, "is a mesh" )
-
-		"""
-		if use_selection and not ob.select_get():
-			print( "Skipping object '%s' bc its not selected..." % ob.name )
+		if len( obj.material_slots ) < 1:
+			shared.add_warning( f"Found no materials on object '{ obj.name }' - skipping..." )
+			# Extra info
+			print( "--> You must have a material assigned to each polygon before exporting your mesh as an XModel!" )
+			print( f"--> To fix this, assign materials to all polygons on '{ obj.name }' before exporting." )
+			errored_objs.append( obj )
 			continue
-		"""
-
-		if len(obj.material_slots) < 1:
-			if not quiet:
-				print("Object '%s' has no materials - skipping..." % obj.name)
+		
+		uv_layer = obj.data.uv_layers.active
+		if not uv_layer or ( uv_layer and uv_layer_is_empty( uv_layer ) ):
+			shared.add_warning( f"Mesh '{ obj.data.name }' has no UVs. Skipping..." )
+			errored_objs.append( obj )
 			continue
 
 		if use_armature_filter:
 			if armature is None:
 				# Defer the check for this object until *after* we know
 				#  which armature we're using
-				secondary_objects.append(obj)
+				secondary_objects.append( obj )
 			else:
-				if test_armature_filter(obj):
-					exportable_objs.append(obj)
+				if test_armature_filter( obj ):
+					exportable_objs.append( obj )
 			continue
 		
-		exportable_objs.append(obj)
+		exportable_objs.append( obj )
 
 	# Perform a secondary filter pass on all objects we missed
 	#  (before the armature was found)
 	if use_armature_filter:
 		for obj in secondary_objects:
-			if test_armature_filter(obj):
-				exportable_objs.append(obj)
+			if not test_armature_filter( obj ):
+				continue
 
+			exportable_objs.append(obj)
+
+	"""
 	# Fallback to exporting only the selected object if we couldn't find any
-	if armature is None:
-		if len(exportable_objs) == 0 and context.active_object is not None:
-			if context.active_object.type == 'MESH':
-				exportable_objs = [context.active_object]
+	if( use_armature and armature is None
+		and len( exportable_objs ) == 0
+		and context.active_object is not None
+		and context.active_object.type == 'MESH'
+		and context.active_object not in errored_objs
+	):
+		exportable_objs = [ context.active_object ]
+	"""
+
+
+	print( "[ DEBUG ] Found", exportable_objs.__len__(), "exportable object(s) for export" )
 
 	return armature, exportable_objs
 
@@ -194,24 +243,28 @@ class ExportMesh(object):
 	Internal class used for handling the conversion of mesh data into
 	a PyCoD compatible format
 	'''
-	__slots__ = ('mesh', 'object', 'matrix', 'weights', 'materials')
+	__slots__ = ( 'mesh', 'object', 'matrix', 'weights', 'materials' )
 
-	def __init__(self, obj, mesh, model_materials):
+	def __init__( self, obj, mesh, global_materials ):
 		self.mesh = mesh
 		self.object = obj
 		self.matrix = obj.matrix_world
-		self.weights = [[] for i in repeat(None, len(mesh.vertices))]
+		self.weights = [ [] for _ in repeat( None, len( mesh.vertices ) ) ]
 
-		# Used to map mesh materials indices to our model material indices
 		self.materials = []
-		self.gen_material_indices(model_materials)
 
-	def clear(self):
+		self.recalc_mtl_indices()
+		# Map the mesh's mtl indices to our model's mtl indices
+		self.gen_material_indices( global_materials )
+
+
+	def clear( self ):
 		self.mesh.user_clear()
-		bpy.data.meshes.remove(self.mesh)
+		bpy.data.meshes.remove( self.mesh )
 
-	# find places where we have too many weights and remove the lowest weights, then renormalize the total
-	def fix_too_many_weights(self):
+
+	def fix_too_many_weights( self ):
+		"""Find places where we have too many weights and remove the lowest weights, then renormalize the total"""
 
 		b_any_bad = False
 
@@ -226,13 +279,13 @@ class ExportMesh(object):
 			while len(self.weights[v]) > 15:
 				self.weights[v].pop() # get rid of lowest
 
-			length = sum([x[1] ** 2 for x in self.weights[v]]) ** 0.5 # calc the vector length
-			self.weights[v] = [(x[0], x[1] / length) for x in self.weights[v]] # divide the entire array by the length (normalize it)
+			length = sum( [ x[ 1 ] ** 2 for x in self.weights[ v ] ] ) ** 0.5 # calc the vector length
+			self.weights[ v ] = [ ( x[ 0 ], x[ 1 ] / length ) for x in self.weights[ v ] ] # divide the entire array by the length (normalize it)
 
 		return b_any_bad
 
 
-	def add_weights(self, bone_table, weight_min_threshold=0.0):
+	def add_weights( self, bone_table, weight_min_threshold = 0.0 ):
 		ob = self.object
 		if ob.vertex_groups is None:
 			for i in range(len(self.weights)):
@@ -266,33 +319,108 @@ class ExportMesh(object):
 				"Removed the lowest until restrictions of 16 weights or less were met")
 
 
-	def gen_material_indices(self, model_materials):
-		self.materials = [None] * len(self.mesh.materials)
-		for material_index, material in enumerate(self.mesh.materials):
-			if material in model_materials:
-				self.materials[material_index] = model_materials.index(material)  # nopep8
+	def recalc_mtl_indices( self ):		
+		""" Makes sure that mtls are all indexed correctly, as sometimes either Blender or
+		other programs that generate/import meshes do not generate mtl indices correctly,
+		hence leading to an "index out of range" error in ExportMesh.gen_material_indices()
+		"""
+		materials = { _mtl.name: idx for idx, _mtl in enumerate( self.object.material_slots ) }
+
+		
+		print( f"Material slots for { self.mesh.name }:" )
+		for idx, slot in enumerate( self.object.material_slots ):
+			print( f"Mtl { idx }: { slot.material.name if slot.material else 'None' }" )
+
+		for poly in self.mesh.polygons:
+			# Get the material assigned to the polygon
+			mtl = self.object.material_slots[ poly.material_index ].material if poly.material_index < len( self.object.material_slots ) else None
+
+			if not mtl:
+				continue
+
+			# Reassign to correct index (in case of mismatch)
+			correct_index = materials.get( mtl.name, -1 )
+
+			if correct_index == -1: continue
+			
+			poly.material_index = correct_index
+
+
+	def gen_material_indices( self, global_materials: list ):
+		"""Adds the mesh's materials into the global map of materials, as when
+		we assign a material id to a polygon, it has to be from the global
+		index, as xmodel requires.
+		"""
+		self.materials = [ None ] * len( self.mesh.materials )
+		prev_len = global_materials.__len__() # debugging - pv
+
+		for material_index, material in enumerate( self.mesh.materials ):
+			"""
+			if material in global_materials:
+				# Make local materials list match the global index for the materials on it.
+				self.materials[ material_index ] = global_materials.index( material ) # nopep8
 			else:
-				self.materials[material_index] = len(model_materials)
-				model_materials.append(material)
+				self.materials[ material_index ] = len( global_materials )
+				global_materials.append( material )
+			"""
+			# Made what we're doing a lot clearer. Old implementation 
+			# has been commented out and can be found above.
+
+			if material not in global_materials:
+				global_materials.append( material )
+			
+			# Make local materials list match the global index for the materials on it.
+			# This essentially makes self.materials a map of local mtl indices to global ones,
+			# as xmodel stores material info global to that xmodel, and we are merging multiple
+			# meshes into 1 xmodel.
+			self.materials[ material_index ] = global_materials.index( material )
+
+		# print( "[ DEBUG ] gen_material_indices() RESULTS:" )
+		# print( f"\tAdded { global_materials.__len__() - prev_len } mtls to global map of mtls" )
+
+		# print( f"\tCurrent look of GLOBAL mtls:" )
+		# print( global_materials )
+		# print( f"\tCurrent look of local mtls:" )
+		# print( self.materials )
 
 
 	def to_xmodel_mesh( self,
-						use_alpha=False,
-						use_alpha_mode='PRIMARY',
-						global_scale=1.0 ):
+						use_vtx_cols = True,
+						use_alpha = False,
+						use_alpha_mode = 'PRIMARY',
+						global_scale = 1.0 ):
 
 		mesh = XModel.Mesh(self.mesh.name)
 
 		# calc_normals functions do not exist in blender 4.0/4.1+
-		# because they re-calculate it when needed automatically
+		# because they re-calculate it when needed automatically.
+		# So, we don't need to recalc. (which is why they removed
+		# the function)
 		if bpy.app.version < ( 4, 1, 0 ):
 			if self.mesh.has_custom_normals:
 				self.mesh.calc_normals_split() # Taken out in 4.1
-			elif bpy.app.version < ( 4, 0, 0 ):
+			
+			if bpy.app.version < ( 4, 0, 0 ):
 				self.mesh.calc_normals() # Taken out in 4.0
 
+		"""
+		if self.mesh.has_custom_normals:
+				calculate_split_normals(self.mesh)
+				if bpy.app.version < (4, 1, 0):
+					self.mesh.calc_normals_split()
+				else:
+					calculate_split_normals(self.mesh)
+		else:
+			self.mesh.calc_normals()
+			if bpy.app.version < (4, 1, 0):
+				self.mesh.calc_normals()
+			else:
+				calculate_face_normals(self.mesh)
+		"""
+
 		uv_layer = self.mesh.uv_layers.active
-		vc_layer = self.mesh.vertex_colors.active
+		vc_layer = self.mesh.vertex_colors.active if use_vtx_cols else None
+
 
 		# Get the vertex layer to use for alpha
 		vca_layer = None
@@ -303,12 +431,11 @@ class ExportMesh(object):
 				for layer in self.mesh.vertex_colors:
 					if layer is not vc_layer:
 						vca_layer = layer
-						break
+						break # Only need the first one we can find
 
-		alpha_default = 1.0
 
 		# Apply transformation matrix to vertices
-		for vert_index, vert in enumerate(self.mesh.vertices):
+		for vert_index, vert in enumerate( self.mesh.vertices ):
 			mesh_vert = XModel.Vertex()
 			transformed_pos = self.matrix @ vert.co # Apply matrix transform
 			mesh_vert.offset = tuple(transformed_pos * global_scale)
@@ -317,9 +444,29 @@ class ExportMesh(object):
 
 		# Extract 3x3 rotation matrix from transformation matrix (ignoring translation)
 		normal_transform = self.matrix.to_3x3()
+		invalid_mtl_idxs_encountered = False
 
+		print( f"[ DEBUG ] Materials on ExportMesh of '{ self.mesh.name }':", self.materials )
+		#print( f"[ DEBUG ] Materials on actual mesh of '{ self.mesh.name }':", self.mesh.materials )
 		for polygon in self.mesh.polygons:
 			face = XModel.Face(0, 0)
+			# print( f"[ DEBUG ] Number of indices for '{ self.mesh.name }':", face.indices.__len__() )
+			# print( f"[ DEBUG ] Number of loop idx's on poly: { polygon.loop_indices.__len__() }" )
+			#print( f"[ DEBUG ] Current mtl index of '{ self.mesh.name }': { polygon.material_index }" )
+			#print( "polygon.material_index =", polygon.material_index )
+
+			if polygon.material_index >= self.materials.__len__():
+				invalid_mtl_idxs_encountered = True
+				"""
+				shared.raise_error(
+					f"Material index for a polygon of '{ self.mesh.name }' is "
+					"greater than the total count of all materials being exported.\n"
+					f"( { polygon.material_index  } >= { self.materials.__len__() } )\n"
+					f"Please fix/redo your materials!"
+				)
+				"""
+				continue
+
 			face.material_id = self.materials[polygon.material_index]
 
 			for i, loop_index in enumerate(polygon.loop_indices):
@@ -328,19 +475,19 @@ class ExportMesh(object):
 				# Get UV coordinates
 				uv = uv_layer.data[loop_index].uv
 
-				# Get vertex colors (with optional alpha channel)
+				# Get vertex colours (with optional alpha channel)
 				if vca_layer is not None:
 					vert_color = vca_layer.data[loop_index].color
-					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else alpha_default)
+					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else .0 )
 				elif vc_layer is not None:
 					vert_color = vc_layer.data[loop_index].color
-					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else alpha_default)
+					rgba = (vert_color[0], vert_color[1], vert_color[2], vert_color[3] if len(vert_color) > 3 else .0 )
 				else:
-					rgba = (1.0, 1.0, 1.0, alpha_default)
+					rgba = ( .0, .0, .0, .0 )
 
 				# Apply transformation to normal
 				transformed_normal = normal_transform @ loop.normal
-				transformed_normal.normalize()  # Ensure normal stays unit-length
+				transformed_normal.normalize() # Ensure normal stays unit-length
 
 				vert = XModel.FaceVertex(
 					loop.vertex_index,
@@ -351,17 +498,26 @@ class ExportMesh(object):
 				face.indices[i] = vert
 
 			# Fix winding order
-			face.indices[1], face.indices[2] = face.indices[2], face.indices[1]
+			face.indices[ 1 ], face.indices[ 2 ] = face.indices[ 2 ], face.indices[ 1 ]
 
 			mesh.faces.append(face)
+
+		if invalid_mtl_idxs_encountered:
+			shared.add_warning(
+				f"Skipped one or more polys on '{ self.mesh.name }'; material indices were invalid."
+			)
+			# Extra info
+			print( "--> Only the polygons with bad materials have been skipped." )
+			print( f"--> To fix this issue, please remove & re-assign the materials on '{ self.mesh.name }'." )
+
 
 		return mesh
 
 
 
 def save(self, context, filepath,
-		target_format='xmodel_export',
-		version='6',
+		target_format='xmodel_bin',
+		version='7',
 		use_selection=False,
 		global_scale=1.0,
 		apply_unit_scale=False,
@@ -369,7 +525,7 @@ def save(self, context, filepath,
 		modifier_quality='PREVIEW',
 		use_vertex_colors=True,
 		use_vertex_colors_alpha=True,
-		use_vertex_colors_alpha_mode='SECONDARY',
+		use_vertex_colors_alpha_mode='PRIMARY',
 		use_vertex_cleanup=False,
 		use_armature=True,
 		use_weight_min=False,
@@ -404,19 +560,15 @@ def save(self, context, filepath,
 	bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 	# ob.update_from_editmode()  # Would this work instead?
 
-	armature, objects = gather_exportable_objects(self, context,
-												use_selection,
-												use_armature,
-												quiet=False)
+	armature, objects = gather_exportable_objects( self, context,
+											   	   use_selection,
+											   	   use_armature )
 
 	# If we were unable to detect any valid rigged objects
 	# we'll use the selected mesh.
-	if len(objects) == 0:
-		return "There are no objects to export"
-
-	# print( objects.__len__(), "object(s) made it out of gather_exportable_objects():" )
-	# for obj in objects:
-	# 	print( "-->", obj.name )
+	if len( objects ) == 0:
+		shared.add_warning( "No valid objects to export!" )
+		return "There are no objects to export!"
 
 	# Set up the argument keywords for save_model
 	keywords = {
@@ -539,16 +691,13 @@ def save_model(self, context, filepath, armature, objects,
 	model = XModel.Model( "$pv_blender_cod_export" )
 
 	meshes: list[ ExportMesh ] = []
-	materials = []
-
-	# HACK - merge meshes into a single mesh so it exports properly
-	# I couldn't diagnose the issue, all the meshes were correctly being
-	# passed into PyCoD, CoDMayaTools probably merges them as well, might
-	# just be a PyCoD issue. So we join here.
-	#previous_active = bpy.context.view_layer.objects.active
-	#objects = [ shared.join_objects_temporarily( objects ) ]
+	global_materials = []
+	obj_dupes_to_delete = []
+	prev_selected_objects = bpy.context.selected_objects
+	prev_active_object = bpy.context.view_layer.objects.active
 
 	for obj in objects:
+		print( f"[ pv_blender_cod ] Exporting '{ obj.name }'..." )
 		# Set up modifiers whether to apply deformation or not
 		mod_states = []
 		for mod in obj.modifiers:
@@ -560,28 +709,27 @@ def save_model(self, context, filepath, armature, objects,
 				mod.show_viewport = (mod.show_viewport and
 									apply_modifiers)
 
-		# to_mesh() applies enabled modifiers only
-		try:
-			# NOTE There's no way to get a 'render' depsgraph for now
-			depsgraph = context.evaluated_depsgraph_get()
-			mesh = obj.evaluated_get(depsgraph).to_mesh()
-		except RuntimeError:
-			mesh = None
+		# Get mesh & apply modifiers
 
-		if mesh is None:
-			print( "RUNTIME ERROR getting object \"%s\"'s mesh" % obj.name )
+		try:
+			# Get a copy of the mesh with modifiers applied
+			depsgraph = bpy.context.evaluated_depsgraph_get()
+
+			evaluated_obj = obj.evaluated_get( depsgraph )
+			obj_dupes_to_delete.append( evaluated_obj )
+
+			mesh = evaluated_obj.to_mesh()
+		except RuntimeError as _e:
+			shared.add_warning( f"RUNTIME ERROR getting object \"{ obj.name }\"'s mesh:\n{ _e }" )
+			print( f"RUNTIME ERROR getting object \"{ obj.name }\"'s mesh:", _e )
 			continue
 
-		# Triangulate the mesh (Appears to keep split normals)
-		#  Also remove all loose verts (Vertex Cleanup)
-		mesh_triangulate(mesh, use_vertex_cleanup)
 
-		# Should we have an arg for this? It seems to be automatic...
-		# Hmm... naaah
-		
-		#use_split_normals = True
-		#if use_split_normals:
-		#	mesh.calc_normals_split()
+		# Triangulate the mesh (appears to keep split normals)
+		#  Also remove all loose verts (Vertex Cleanup)
+		if needs_triangulation( mesh ):
+			print( f"[ DEBUG ] Mesh '{ mesh.name }' needs triangulation" )
+			mesh_triangulate( mesh, use_vertex_cleanup )
 
 		# Normal calculations are done automatically in Blender 4.1+
 		if bpy.app.version < ( 4, 1, 0 ):
@@ -589,36 +737,23 @@ def save_model(self, context, filepath, armature, objects,
 
 
 		# Restore modifier settings
-		for i, mod in enumerate(obj.modifiers):
-			mod.show_viewport = mod_states[i]
+		for i, mod in enumerate( obj.modifiers ):
+			mod.show_viewport = mod_states[ i ]
 
 		# Skip invalid meshes
+		# We've alr triangulated @ this point, so
+		# this should never be true
 		if len(mesh.vertices) < 3:
 			_skip_notice(obj.name, mesh.name, "Less than 3 vertices")
 			mesh.user_clear()
 			bpy.data.meshes.remove(mesh)
-			continue
-		#! mesh.tessfaces is deprecated
-		"""if len(mesh.loop_triangles) < 1:
-			_skip_notice(ob.name, mesh.name, "No faces")
-			mesh.user_clear()
-			bpy.data.meshes.remove(mesh)
-			continue"""
-
-		#! DEPRECATED
-		"""if not mesh.tessface_uv_textures:
-			_skip_notice(ob.name, mesh.name, "No UV texture, not unwrapped?")
-			mesh.user_clear()
-			bpy.data.meshes.remove(mesh)
-			continue"""
 
 		# print( "Appending obj '%s' to meshes with all its mtl info..." % obj.name )
-		meshes.append(ExportMesh(obj, mesh, materials))
+		print( f"[ DEBUG ] MESH '{ mesh.name }' BEING PASSED INTO ExportMesh() W/ { mesh.materials.__len__() } MTLS:" )
+		for _mtl in mesh.materials:
+			print( _mtl, ' | ', _mtl.name )
 
-	# print( "Export mesh matrices:" )
-	# for _mesh in meshes:
-	# 	loc, rot, sc = _mesh.matrix.decompose()
-	# 	print( ( "--> Name: '%s'\n\tLocation: '{0}'\n\tRotation: '{1}'\n\tScale '{2}'" % _mesh.object.name ).format( loc, rot, sc ) )
+		meshes.append( ExportMesh( obj, mesh, global_materials ) )
 
 	# Build the bone hierarchy & transform matrices
 	if use_armature and armature is not None:
@@ -678,39 +813,54 @@ def save_model(self, context, filepath, armature, objects,
 		)
 
 	missing_count = 0
-	for material in materials:
-		imgs = material_gen_image_dict(material)
+	for material in global_materials:
+		# imgs = material_gen_image_dict(material)
+		imgs = {} # material_gen_image_dict() just returns an empty dict anyway
+
+		_e = None
 		try:
 			name = material.name
-		except:
-			name = "material" + str(missing_count)
+		except Exception as _e:
+			name = "missing_mtl_" + str( missing_count )
 			missing_count += 1
 
-		mtl = XModel.Material(name, "Lambert", imgs)
-		model.materials.append(mtl)
+		# Avoid try except statement so we don't miss any
+		# errors that occur inside validate_mtl_name()
+		if not _e:
+			name = validate_mtl_name( name )
 
-	# print( "Yo, PyCoD xmodel meshes are:" )
-	# for _mesh in model.meshes:
-	# 	print( "--> Name: '%s' | Vert count: %i | Tri count: %i" % ( _mesh.name, _mesh.verts.__len__(), _mesh.faces.__len__() ) )
+		mtl = XModel.Material( name, "Lambert", imgs )
+		model.materials.append( mtl )
 
-	header_msg = shared.get_metadata_string(filepath)
+	header_msg = shared.get_metadata_string( filepath )
+
 	if target_format == 'xmodel_bin':
-		model.WriteFile_Bin(filepath, version=version,
-							header_message=header_msg)
+		model.WriteFile_Bin(
+			filepath, version=version,
+			header_message=header_msg
+		)
 	else:
-		model.WriteFile_Raw(filepath, version=version,
-							header_message=header_msg)
-
+		model.WriteFile_Raw(
+			filepath, version=version,
+			header_message=header_msg
+		)
 
 
 	# Do we need this view_layer.update?
 	context.view_layer.update()
 
-	# So before the intitial iteration over
-	# `objects`, we ran join_and_copy() on it.
-	# Well, we now need to delete that copy
-	# ... kinda messy, but yea it works.
-	#bpy.context.view_layer.objects.active = previous_active # Set this back
-	#for _obj in objects:
-	#	bpy.data.objects.remove( _obj, do_unlink=True )
+	# A 4.0+ fix to apply modifiers above requires me to
+	# select the object, so if they're on 4.0+, then we
+	# revert their selection back to what it was before
+	if bpy.app.version >= ( 4, 0, 0 ):
+		bpy.ops.object.select_all( action='DESELECT' )
+
+		for _obj in prev_selected_objects:
+			_obj.select_set( True )
+		
+		bpy.context.view_layer.objects.active = prev_active_object
 	
+	for _obj in obj_dupes_to_delete:
+		_obj.to_mesh_clear()
+
+

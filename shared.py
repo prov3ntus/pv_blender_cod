@@ -18,10 +18,12 @@
 
 # <pep8 compliant>
 
+import bpy
+
 plugin_preferences = None
+warning_messages: list[ str ] = []
 
 def get_metadata_string(filepath):
-	import bpy
 	msg = "// Exported using pv_blender_cod in Blender %s\n" % bpy.app.version_string
 	msg += "// Export filename: '%s'\n" % filepath.replace("\\", "/")
 	if bpy.data.filepath is None:
@@ -61,7 +63,7 @@ units_of_time = (
 	( 'ns',		10**-9	)
 )
 
-def timef( seconds: float, granularity=2 ):
+def timef( seconds: float, granularity = 2 ):
 	"""Formats the given time from seconds into a readable string.
 
 	E.g.:
@@ -124,3 +126,73 @@ def join_objects_temporarily(objects):
 		obj.select_set(True)
 
 	return joined
+
+def raise_error( message ):
+	class ErrorOperator( bpy.types.Operator ):
+		bl_idname = "wm.error_operator"
+		bl_label = "pv_blender_cod Error"
+
+		message: bpy.props.StringProperty(
+			name="Error Message"
+		) # type: ignore
+
+		def execute( self, context ):
+			self.report( {'ERROR'}, self.message )
+			return { 'FINISHED' }
+
+	# Register the operator if not already registered
+	if "wm.error_operator" not in bpy.types.Operator.__dict__:
+		bpy.utils.register_class( ErrorOperator )
+
+	bpy.ops.wm.error_operator( 'INVOKE_DEFAULT', message = message )
+
+import bpy
+
+class PV_OT_message_list_popup(bpy.types.Operator):
+	bl_idname = "wm.pv_message_list_popup"
+	bl_label = "Warnings occured during export!"
+
+	messages: bpy.props.StringProperty() # type: ignore
+
+	def execute(self, context):
+		return {'FINISHED'}
+
+	def invoke(self, context, event):
+		return context.window_manager.invoke_props_dialog( self, width=600 )
+
+	def draw(self, context):
+		layout = self.layout
+		col = layout.column()
+
+		lines = self.messages.split('\n')
+		display_lines = lines[:5]
+		for line in display_lines:
+			col.label(text=line)
+
+		remaining = len(lines) - len(display_lines)
+		if remaining > 0:
+			col.label( text = f"... + {remaining} more." )
+
+		col.separator()
+
+		col.label(
+			text = "Go to Window --> Toggle System Console for more info.",
+			icon = 'INFO'
+		)
+
+def show_warnings():
+	global warning_messages
+
+	# Only show dialog if there are messages to show
+	if not warning_messages.__len__(): return
+
+	msg_str = "\n".join( warning_messages )
+	warning_messages = []
+	# print( "[ DEBUG ] Showing warnings dialog..." )
+	bpy.ops.wm.pv_message_list_popup( 'INVOKE_DEFAULT', messages = msg_str )
+
+def add_warning( _msg: str ):
+	global warning_messages
+	
+	print( '[ WARNING ]', _msg )
+	warning_messages.append( '--> ' + _msg )

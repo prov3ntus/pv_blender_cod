@@ -1,7 +1,7 @@
 
 
 
-LOCAL_VERSION = "0.8.6"
+LOCAL_VERSION = "0.8.7"
 
 
 
@@ -35,7 +35,7 @@ def get_latest_version():
 		DOWNLOAD_URL = latest["assets"][0]["browser_download_url"]
 		return latest["tag_name"].strip( 'v' )
 	except Exception as e:
-		print(f"[ pv_bl_cod Updater ] Failed to fetch latest version: {e}")
+		print(f"[ pv_blender_cod ] ERROR - Failed to fetch latest version:\n\n{e}")
 		return e
 
 def download_latest_zip(url, save_path):
@@ -83,8 +83,8 @@ def check_for_update():
 	global NEW_VERSION
 	
 	latest_version = get_latest_version()
-
-	if latest_version is Exception:
+	
+	if isinstance( latest_version, Exception ):
 		return latest_version # Return exception
 
 	if latest_version > LOCAL_VERSION:
@@ -140,26 +140,6 @@ class UpdateOperator(bpy.types.Operator):
 		return {'FINISHED'}
 
 
-class SimpleDialogConfirmOperator( bpy.types.Operator ):
-	bl_idname = "wm.simple_dialog_confirm"
-	bl_label = "Confirm"
-	bl_description = "Click me if you're cool :)"
-
-	def execute(self, context):
-		print( "SimpleDialogConfirmOperator execute()" )
-
-		global update_dialog
-		if update_dialog: update_dialog.__apply_dont_ask_again__()
-
-		global AUTO_UPDATE_PASSED
-		
-		AUTO_UPDATE_PASSED = True
-
-		self.report( { 'INFO' }, "Updating BlenderCoD..." )
-		update()
-		
-		return { 'FINISHED' }
-
 class CancelDialogOperator(bpy.types.Operator):
 	bl_idname = "wm.cancel_dialog"
 	bl_label = "Cancel"
@@ -173,7 +153,7 @@ class CancelDialogOperator(bpy.types.Operator):
 
 		global update_dialog
 		if update_dialog: update_dialog.__apply_dont_ask_again__()
-
+		
 		# Damn... well fuck you, then.
 		bpy.ops.wm.cancel_response( 'INVOKE_DEFAULT' )
 
@@ -186,7 +166,7 @@ class CancelDialogOperator(bpy.types.Operator):
 
 class ConfirmUpdateOperator(bpy.types.Operator):
 	bl_idname = "wm.confirm_update"
-	bl_label = "pv_blender_cod update"
+	bl_label = "Addon Update Available:"
 
 	dont_ask_again: bpy.props.BoolProperty(
 		name="Don't Ask Again",
@@ -195,12 +175,13 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 		default=False
 	) # type: ignore
 
+
 	def execute( self, context ):
 		print( "Confirm update operator execute()" )
 		# Store the preference to skip confirmation
 		shared.plugin_preferences.dont_ask_again = self.dont_ask_again
 
-		if shared.plugin_preferences.dont_ask_again:
+		if self.dont_ask_again:
 			shared.plugin_preferences.auto_update_enabled = False
 			self.report( { 'INFO' }, "BlenderCoD auto-updates disabled. - pv" )
 			return { 'FINISHED' }
@@ -215,11 +196,14 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 		return {'FINISHED'}
 
+
 	def invoke(self, context, event):
 		global update_dialog
 		# Store a reference to self so we can call __apply_dont_ask_again__()
 		update_dialog = self
-		return context.window_manager.invoke_popup( self, width = 400 )
+		# return context.window_manager.invoke_popup( self, width = 400 )
+		return context.window_manager.invoke_props_dialog( self, width = 400 )
+
 
 	def cancel( self, context ):
 		print( "Confirm update operator cancel()" )
@@ -233,11 +217,13 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 			shared.plugin_preferences.auto_update_enabled = False
 			self.report({'INFO'}, "BlenderCoD auto-updates disabled. - pv")
 		"""
+
 		global AUTO_UPDATE_PASSED
 		
 		AUTO_UPDATE_PASSED = True
 
 		return None
+
 
 	def __apply_dont_ask_again__( self ):
 		# Store the preference to skip confirmation
@@ -275,12 +261,9 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 			layout.separator()
 
-		vbox = layout.row()
-		vbox.operator(
-			"wm.simple_dialog_confirm", text = "Yes",
-		)
-		vbox.operator(
-			"wm.cancel_dialog", text = "No",
+		layout.operator(
+			"wm.cancel_dialog", text = "Cancel",
+			icon = "CANCEL"
 		)
 
 class ISeeHowItIsOperator( bpy.types.Operator ):
