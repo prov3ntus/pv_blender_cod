@@ -1,5 +1,12 @@
 # pv_blender_cod
 
+## NOTE:
+This description below is partially **OUT OF DATE** and needs updating - I'll get around to it at some point.
+
+In the meantime, keep up with the changelogs I write in releases to stay up-to-date!
+
+---
+
 A Blender (3.0+) plugin for importing/exporting XModels and XAnims
 
 Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
@@ -7,6 +14,8 @@ Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
 The addon in blender is called "pv_blender_cod" in the addons window.
 
 It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon made by Serious.
+
+---
 
 Forked this originally for [Xela](https://x.com/MrXeIa), so he could export alpha vertex colours for Blender 3.0.
 
@@ -23,6 +32,8 @@ The direct download to the source of the version that supports Blender 3.0 is
 [here](https://github.com/oRazeD/VertexColorsPlus/archive/f94f5e781cff0488e1fdfdfcbff5a714989be146.zip) if anyone wants it.
 
 It also fixes exporting separate meshes, and hence the "Export selected only" checkbox, when exporting an xmodel.
+
+---
 
 The most stable and supported version of Blender to use pv_blender_cod with is Blender 3.0.0. 
 However other versions are supported. This plugin is supposed to support all versions of Blender 3.0+!
