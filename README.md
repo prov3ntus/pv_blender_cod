@@ -1,7 +1,5 @@
 # pv_blender_cod
 
----
-
 A Blender (3.0+ to 4.0+) plugin for importing/exporting XModels and XAnims for Call of Duty.
 
 The addon in blender is called "pv_blender_cod" in the addons window.
