@@ -1,56 +1,56 @@
 # pv_blender_cod
 
-## NOTE:
-This description below is partially **OUT OF DATE** and needs updating - I'll get around to it at some point.
-
-In the meantime, keep up with the changelogs I write in releases to stay up-to-date!
-
 ---
 
-A Blender (3.0+) plugin for importing/exporting XModels and XAnims
-
-Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
+A Blender (3.0+ to 4.0+) plugin for importing/exporting XModels and XAnims for Call of Duty.
 
 The addon in blender is called "pv_blender_cod" in the addons window.
 
-It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon made by Serious.
+Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
+
+It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon previously maintained by Serious.
+
+## New Features
+
+Here is a definitive list of features / fixes I've made to the plugin:
+
+### Cleans Material Names
+Upon export, any invalid characters are replaced with underscores, and the material name is lower-cased.
+
+It's baffling that this wasn't added by any of the previous maintainers, tbh.
+
+### Exporting Multiple Objects Fix
+Using the "Export Selection" option when exporting XModels now **fully works** with no issues. You can also export all meshes in the scene, and it works fine.
+You no longer have to join the mesh before exporting.
+
+### Blender 4.0+ Bug Fixes
+Exporting XModels now apply modifiers. Custom weighted/split normals are preserved.
+Only auto-triangulates if necessary upon export, as export triangulation was discarding some data (it no longer does this anyway anymore).
+
+### Auto-updating
+When a new update is released, you'll be notified about it in Blender. Updates will be checked for on startup, and you'll be prompted if there's an update available.
+
+### Nicer Warnings
+Like CoDMayaTools, you are notified if any warnings occured during an operation.
+The **first five** are shown on the pop-up.
+
+For more information about the (and to check out the errors that weren't shown if there are more than 5), open the console window by going in Blender to the top left, then click **Window --> Toggle System Console**.
+There will be descriptions of any warnings, and overflow warnings (when there are more than 5 warnings in one export).
+
+### Vertex Color Fixes
+Preserves vertex colours when importing / exporting XModels. Also supports custom vertex color plugins, and can export the data from them.
+You'd wanna use a plugin when exporting alpha vertex colors for blending, specifically [VertexColorPlus](https://github.com/oRazeD/VertexColorsPlus/). 
+
+Alpha vertex colours are not otherwise possible to export in Blender (at least in 3.0).
+
+If a vertex layer exists from a plugin, pv_blender_cod will use that instead when exporting.
 
 ---
 
-Forked this originally for [Xela](https://x.com/MrXeIa), so he could export alpha vertex colours for Blender 3.0.
+The aim for this plugin is to support all versions from Blender 3.0+, **_including_** Blender 4.0+. I haven't gotten around to fixing XAnim support yet so please be patient until I do.
 
-Alpha vertex colours were not possible to export in blender before (at least in 3.0).
+Other than that, please **let me know if you encounter a problem** by opening an issue here, and I'll fix it **as soon as I can**!
 
-My fork of BlenderCoD allows for compatibility with any vertex colour plugin
-(specifically [VertexColorPlus](https://github.com/oRazeD/VertexColorsPlus/)),
-which applies vertex colour sets and supports an alpha channel.
-If that colour set exists, pv_blender_cod will use that one instead when exporting.
-
-The plugin we used to add alpha vertex colours was a 3 year old version of
-[VertexColorPlus](https://github.com/oRazeD/VertexColorsPlus/) that supported Blender 3.0 still.
-The direct download to the source of the version that supports Blender 3.0 is
-[here](https://github.com/oRazeD/VertexColorsPlus/archive/f94f5e781cff0488e1fdfdfcbff5a714989be146.zip) if anyone wants it.
-
-It also fixes exporting separate meshes, and hence the "Export selected only" checkbox, when exporting an xmodel.
-
----
-
-The most stable and supported version of Blender to use pv_blender_cod with is Blender 3.0.0. 
-However other versions are supported. This plugin is supposed to support all versions of Blender 3.0+!
-Please let me know if you run into any issues, I'll fix them ASAP for you.
-
-Bear in mind, while I iron out the kinks for other Blender verisons,
-you can always install [Blender 3.0.0](https://download.blender.org/release/Blender3.0/),
-regardless of the current version of Blender you have installed.
-Blender supports having multiple versions installed at once. A list of
-downloads to all blender versions can be found [here](https://download.blender.org/release/).
-Install the .msi option, it's the easiest one, and all your Blender installtions will be in
-the same place.
-
-The aim is to support all versions from Blender 3.0.0+. I've not teseted any other features
-other than the xmodel exporter, so if you encounter any issues (and you  probably will!), please let me know 
-either on discord (@prov3ntus or join the [DEVRAW discord](https://discord.gg/yMGJBCBJUV)) or open an issue here, and I'll fix it as soon as I can!
-
-Stolen from Serious & Marv, adds support for cosmetic bones and auto-normalizes bones with too many weights. 
+Credits are due to all previous maintainers: [shiversoftdev](https://github.com/shiversoftdev), [Ma_rv](https://github.com/marv7000/), [CoDEManX](https://github.com/CoDEmanX), Flybynyt & [SE2Dev](https://github.com/SE2Dev).
 
 ye
