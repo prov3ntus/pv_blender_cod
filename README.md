@@ -51,6 +51,7 @@ There are some things I still need to add to / fix with the plugin; they're all 
 - Fix compression for exporting to binary formats (as currently, no compression is being applied and file sizes are BIG).
 - Look into XAnim importing & exporting and fix issues left by previous maintainers (and hence add 4.0+ support).
 - Show a summary of the changelog in the auto-update prompt so you know why you're updating.
+- Drag n' drop support for importing XModel/XAnims
 - Reports of some scaling issues (might possibly be other plugins fucking up, need to look into it).
 
 ---
