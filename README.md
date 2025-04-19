@@ -15,7 +15,7 @@ Here is a definitive list of features / fixes I've made to the plugin:
 ### Cleans Material Names
 Upon export, any invalid characters are replaced with underscores, and the material name is lower-cased.
 
-It's baffling that this wasn't added by any of the previous maintainers, tbh.
+It's baffling that this wasn't added by any of the previous maintainers, tbh. This plugin was never really shown any love.
 
 ### Exporting Multiple Objects Fix
 Using the "Export Selection" option when exporting XModels now **fully works** with no issues. You can also export all meshes in the scene, and it works fine.
@@ -43,9 +43,19 @@ Alpha vertex colours are not otherwise possible to export in Blender (at least i
 
 If a vertex layer exists from a plugin, pv_blender_cod will use that instead when exporting.
 
+
+## Known Issues / Current To-do List
+
+There are some things I still need to add to / fix with the plugin; they're all detailed here, in order of highest to least priority:
+
+- Fix compression for exporting to binary formats (as currently, no compression is being applied and file sizes are BIG).
+- Look into XAnim importing & exporting and fix issues left by previous maintainers (and hence add 4.0+ support).
+- Show a summary of the changelog in the auto-update prompt so you know why you're updating.
+- Reports of some scaling issues (might possibly be other plugins fucking up, need to look into it).
+
 ---
 
-The aim for this plugin is to support all versions from Blender 3.0+, **_including_** Blender 4.0+. I haven't gotten around to fixing XAnim support yet so please be patient until I do.
+The aim for this plugin is to support all versions from Blender 3.0+, **_including_** Blender 4.0+. As aforementioned above, I haven't gotten around to fixing XAnim support yet so please be patient until I do.
 
 Other than that, please **let me know if you encounter a problem** by opening an issue here, and I'll fix it **as soon as I can**!
 
