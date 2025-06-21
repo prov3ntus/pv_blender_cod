@@ -43,9 +43,15 @@ You can also copy the output of the console and include it when you report the e
 
 
 ### Vertex Color Fixes
-Preserves vertex colours when importing / exporting XModels (_including alpha for material blending_)
+Fully preserves any vertex colours when importing / exporting XModels _(including alpha for material blending)_
 
 Note: Painting alpha vertex colours isn't possible in Blender 3.X. You'd wanna use a plugin for it instead, specifically an old version of VertexColorPlus that you can download [here](https://github.com/oRazeD/VertexColorsPlus/archive/6e4a9fb18e88449487fe1cd631e5c8ec2f7fbaa4.zip).
+
+For Blender 4.X, Blender supports alpha blending, but it's kinda hidden away (see below).
+
+![image](https://github.com/user-attachments/assets/a9be7b96-5df4-4027-ab8e-a52b3bb70fa9)
+
+Therefore, you won't need VertexColorsPlus for Blender 4.X (the plugin doesn't even work properly in 4.X anyway lmao).
 
 
 ## Known Issues / Current To-do List
