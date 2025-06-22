@@ -17,25 +17,24 @@
 # ##### END GPL LICENSE BLOCK #####
 
 
-import traceback
-import bpy
+import traceback, bpy, os, sys
 from bpy.types import Operator, AddonPreferences
-from bpy.props import (BoolProperty, IntProperty, FloatProperty,
-					   StringProperty, EnumProperty, CollectionProperty)
+from bpy.props import ( BoolProperty, IntProperty, FloatProperty,
+					   StringProperty, EnumProperty, CollectionProperty )
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 
-from bpy.utils import register_class, unregister_class
+# from bpy.utils import register_class, unregister_class
 
-import os, time
+from . import pv_py_utils
+from .pv_py_utils import console, log, pathlib, stdlib, sysframe
+from .pv_py_utils.stdlib import *
 
-from . import PyCoD, export_xmodel, export_xanim, import_xmodel, import_xanim, shared, updater
-from .PyCoD import sanim, xmodel, xanim, xbin
-
+print( sys.version )
 
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": ( 0, 8, 7 ),
+	"version": ( 0, 8, 8 ),
 	"blender": ( 3, 0, 0 ),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",
@@ -44,6 +43,13 @@ bl_info = {
 	"support": "COMMUNITY",
 	"category": "Import-Export"
 }
+
+sys.path.insert( 0, os.path.join( os.path.dirname( __file__ ), "PyCoD" ) )
+
+from . import PyCoD, export_xmodel, export_xanim, import_xmodel, import_xanim, shared, updater
+from .PyCoD import sanim, xmodel, xanim, xbin, _lz4, lz4
+from .PyCoD.lz4 import block, frame, version
+
 
 
 
@@ -74,16 +80,19 @@ def register():
 	# Set the global 'plugin_preferences' variable for each module
 	shared.plugin_preferences = preferences
 
-	# Check for update if auto-update is enabled
+	# Check for update if auto-update is enabled.
+	# At some point, I want to somehow thread this all
+	# off, so that Blender doesn't take long to load. Cause right now,
+	# it has to wait for the server request in `updater.check_for_update()`
 	if preferences.auto_update_enabled:
 		update_result = updater.check_for_update()
 
 		if update_result == updater.UPDATE_FAILED:
 			print( "[ pv_blender_cod ]\tpv_blender_cod update failed." )
 		elif update_result == updater.UPDATE_AVAILABLE:
-			bpy.app.timers.register( updater.delayed_update_prompt, first_interval = 1.0 )
+			bpy.app.timers.register( updater.delayed_update_prompt, first_interval = .1 )
 		elif update_result == updater.UPDATE_UPTODATE:
-			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date. (v{updater.LOCAL_VERSION})" )
+			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date: v{updater.LOCAL_VERSION}" )
 	
 	# do imp updates here? add to a function?? - pv
 	
@@ -128,12 +137,12 @@ def update_scale_length(self, context):
 		self.scale_length = unit_map[self.unit_enum]
 
 
-class BlenderCoD_Preferences(AddonPreferences):
+class BlenderCoD_Preferences( AddonPreferences ):
 	bl_idname = __name__
 
 	use_submenu: BoolProperty(
 		name="Group Import/Export Buttons",
-		default=False,
+		default=false,
 		update=update_submenu_mode
 	) # type: ignore
 
@@ -173,7 +182,7 @@ class BlenderCoD_Preferences(AddonPreferences):
 	auto_update_enabled: BoolProperty(
 		name = "Auto-update When Blender Starts",
 		description = "Automatically check for pv_blender_cod updates when Blender starts",
-		default = True
+		default = true
 	) # type: ignore
 
 	def draw(self, context):
@@ -182,7 +191,7 @@ class BlenderCoD_Preferences(AddonPreferences):
 		row = layout.row()
 		row.prop(self, "use_submenu")
 
-		col1 = layout.row( align = True )
+		col1 = layout.row( align = true )
 		# Auto-update toggle
 		col1.prop( self, "auto_update_enabled" )
 
@@ -194,52 +203,64 @@ class BlenderCoD_Preferences(AddonPreferences):
 		)
 
 		# Scale options
-		col2 = row.column(align=True)
+		col2 = row.column(align=true)
 		col2.label(text="Units:")
-		sub = col2.split(align=True)
+		sub = col2.split(align=true)
 		sub.prop(self, "unit_enum", text="")
-		sub = col2.split(align=True)
+		sub = col2.split(align=true)
 		sub.enabled = self.unit_enum == 'CUSTOM'
 		sub.prop(self, "scale_length")
 
 
-# To support reload properly, try to access a package var, if it's there,
-# reload everything
+# To support reload properly, try to access a package var.
+# If it's there, reload everything
 if "bpy" in locals():
 	print( "Reloading pv_blender_cod...")
 	import imp
-	if "import_xmodel" in locals():
-		imp.reload(import_xmodel)
-	if "export_xmodel" in locals():
-		print( "-> Reloading export_xmodel lib" )
-		imp.reload(export_xmodel)
-	if "import_xanim" in locals():
-		imp.reload(import_xanim)
-	if "export_xanim" in locals():
-		imp.reload(export_xanim)
-	if "shared" in locals():
-		imp.reload(shared)
-	if "PyCoD" in locals():
-		imp.reload(PyCoD)
-	if "sanim" in locals():
-		imp.reload(sanim)
-	if "xanim" in locals():
-		imp.reload(xanim)
-	if "xbin" in locals():
-		imp.reload(xbin)
-	if "xmodel" in locals():
-		print( "-> Reloading xmodel PyCoD lib" )
-		imp.reload(xmodel)
-	if "updater" in locals():
-		imp.reload( updater )
+
+	modules = {
+		# pv_blender_cod
+		"import_xmodel": import_xmodel,
+		"export_xmodel": export_xmodel,
+		"import_xanim": import_xanim,
+		"export_xanim": export_xanim,
+		"updater": updater,
+		"shared": shared,
+		# PyCoD
+		"PyCoD": PyCoD,
+		"sanim": sanim,
+		"xanim": xanim,
+		"xmodel": xmodel,
+		"xbin": xbin,
+		"_lz4": _lz4,
+		# LZ4
+		"lz4": lz4,
+		"block": block,
+		"frame": frame,
+		"version": version,
+		# Utils
+		"pv_py_utils": pv_py_utils,
+		"console": console,
+		"log": log,
+		"pathlib": pathlib,
+		"stdlib": stdlib,
+		"sysframe": sysframe,
+	}
+
+	for _mod in modules:
+		if _mod in locals():
+			imp.reload( modules[ _mod ] )	
 else:
 	from . import import_xmodel, export_xmodel, import_xanim, export_xanim
 	from . import shared
 	from . import PyCoD
-	from .PyCoD import sanim, xanim, xbin, xmodel
+	from .PyCoD import sanim, xanim, xbin, xmodel, _lz4, lz4
+	from .PyCoD.lz4 import block, frame, version
+	from . import pv_py_utils
+	from .pv_py_utils import console, log, pathlib, stdlib, sysframe
 
 
-class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
+class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
 	bl_idname = "import_scene.xmodel"
 	bl_label = "Import XModel"
 	bl_description = "Import a CoD xmodel_export / xmodel_bin File"
@@ -270,44 +291,44 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 		name="Apply Unit",
 		description="Scale all data according to current Blender size,"
 					" to match CoD units",
-		default=True,
+		default=true,
 	)
 
 	use_single_mesh: BoolProperty(
 		name="Combine Meshes",
 		description="Combine all meshes in the file into a single object",  # nopep8
-		default=True
+		default=true
 	)
 
 	use_dup_tris: BoolProperty(
 		name="Import Duplicate Tris",
 		description=("Import tris that reuse the same vertices as another tri "
 					 "(otherwise they are discarded)"),
-		default=True
+		default=true
 	)
 
 	use_custom_normals: BoolProperty(
 		name="Import Normals",
 		description=("Import custom normals, if available "
 					 "(otherwise Blender will recompute them)"),
-		default=True
+		default=true
 	)
 
 	use_vertex_colors: BoolProperty(
 		name="Import Vertex Colors",
-		default=True
+		default=true
 	)
 
 	use_armature: BoolProperty(
 		name="Import Armature",
 		description="Import the skeleton",
-		default=True
+		default=true
 	)
 
 	use_parents: BoolProperty(
 		name="Import Relationships",
 		description="Import the parent / child bone relationships",
-		default=True
+		default=true
 	)
 
 	"""
@@ -316,34 +337,34 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 		description=("Force connection of children bones to their parent, "
 					 "even if their computed head/tail "
 					 "positions do not match"),
-		default=False,
+		default=false,
 	)
 	"""  # nopep8
 
 	attach_model: BoolProperty(
 		name="Attach Model",
 		description="Attach head to body, gun to hands, etc.",
-		default=False
+		default=false
 	)
 
 	merge_skeleton: BoolProperty(
 		name="Merge Skeletons",
 		description="Merge imported skeleton with the selected skeleton",
-		default=False
+		default=false
 	)
 
 	use_image_search: BoolProperty(
 		name="Image Search",
 		description=("Search subdirs for any associated images "
 					 "(Warning, may be slow)"),
-		default=True
+		default=true
 	)
 
 	def execute(self, context):
 		self.report( {'INFO'}, "Importing XModel..." )
 
 		from . import import_xmodel
-		start_time = time.perf_counter()
+		start_time = timer()
 
 		keywords = self.as_keywords(ignore=("filter_glob",
 											"check_existing",
@@ -352,7 +373,7 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 		result = import_xmodel.load(self, context, **keywords)
 
 		if not result:
-			_time = shared.timef( time.perf_counter() - start_time )
+			_time = console.timef( timer() - start_time )
 			self.report( { 'INFO' }, "Import finished in %s." % _time )
 			print( "Import finished in %s." % _time )
 			_ret_val = { 'FINISHED' }
@@ -373,14 +394,14 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 	def draw(self, context):
 		layout = self.layout
 
-		layout.prop(self, 'ui_tab', expand=True)
+		layout.prop(self, 'ui_tab', expand=true)
 		if self.ui_tab == 'MAIN':
 			# Orientation (Possibly)
 			# Axis Options (Possibly)
 
-			row = layout.row(align=True)
+			row = layout.row(align=true)
 			row.prop(self, "global_scale")
-			sub = row.row(align=True)
+			sub = row.row(align=true)
 			sub.prop(self, "apply_unit_scale", text="")
 
 			layout.prop(self, 'use_single_mesh')
@@ -405,7 +426,7 @@ class COD_MT_import_xmodel(bpy.types.Operator, ImportHelper):
 			sub.prop(self, 'merge_skeleton')
 
 
-class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
+class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 	bl_idname = "import_scene.xanim"
 	bl_label = "Import XAnim"
 	bl_description = "Import a CoD XANIM_EXPORT / XANIM_BIN File"
@@ -429,34 +450,34 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 		name="Apply Unit",
 		description="Scale all data according to current Blender size,"
 					" to match CoD units",
-		default=True,
+		default=true,
 	)
 
 	use_actions: BoolProperty(
 		name="Import as Action(s)",
 		description=("Import each animation as a separate action "
 					 "instead of appending to the current action"),
-		default=True
+		default=true
 	)
 
 	use_actions_skip_existing: BoolProperty(
 		name="Skip Existing Actions",
 		description="Skip animations that already have existing actions",
-		default=False
+		default=false
 	)
 
 	use_notetracks: BoolProperty(
 		name="Import Notetracks",
 		description=("Import notes to scene timeline markers "
 					 "(or action pose markers if 'Import as Action' is enabled)"),  # nopep8
-		default=True
+		default=true
 	)
 
 	use_notetrack_file: BoolProperty(
 		name="Import NT_EXPORT File",
 		description=("Automatically import the matching NT_EXPORT file "
 					 "(if present) for each XANIM_EXPORT"),
-		default=True
+		default=true
 	)
 
 	fps_scale_type: EnumProperty(
@@ -482,7 +503,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 		name="Update Scene FPS",
 		description=("Set the scene framerate to match the framerate "
 					 "found in the first imported animation"),
-		default=False
+		default=false
 	)
 
 	anim_offset: FloatProperty(
@@ -495,7 +516,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 		self.report( { 'INFO' }, "Importing XAnim..." )
 
 		from . import import_xanim
-		start_time = time.perf_counter()
+		start_time = timer()
 
 		ignored_properties = ( "filter_glob", "files", "apply_unit_scale" )
 		result = import_xanim.load(
@@ -505,7 +526,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 			**self.as_keywords(ignore=ignored_properties))
 
 		if not result:
-			_time = shared.timef( time.perf_counter() - start_time )
+			_time = console.timef( timer() - start_time )
 			self.report( { 'INFO' }, "Import finished in %s." % _time )
 			print( "Import finished in %s." % _time )
 
@@ -525,9 +546,9 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 	def draw(self, context):
 		layout = self.layout
 
-		row = layout.row(align=True)
+		row = layout.row(align=true)
 		row.prop(self, "global_scale")
-		sub = row.row(align=True)
+		sub = row.row(align=true)
 		sub.prop(self, "apply_unit_scale", text="")
 
 		layout.prop(self, 'use_actions')
@@ -552,7 +573,7 @@ class COD_MT_import_xanim(bpy.types.Operator, ImportHelper):
 		layout.prop(self, 'anim_offset')
 
 
-class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
+class COD_MT_export_xmodel( bpy.types.Operator, ExportHelper ):
 	bl_idname = "export_scene.xmodel"
 	bl_label = 'Export XModel'
 	bl_description = "Export a CoD xmodel_export / xmodel_bin File"
@@ -583,76 +604,88 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 	) # type: ignore
 
 	version: EnumProperty(
-		name="Version",
+		name="XModel Version",
 		description="xmodel_export format version for export",
-		items=(('5', "Version 5", "vCoD, CoD:UO"),
-			   ('6', "Version 6", "CoD2, CoD4, World at War, Black Ops I"),
-			   ('7', "Version 7", "Black Ops III")),
+		items=(
+			( '', "Deprecated", '' ),
+			('5', "Version 5", "CoD1 | CoD:UO"),
+			('6', "Version 6", "CoD2 | CoD4 | World at War | Black Ops I"),
+			( '', 'Black Ops III', '' ),
+			('7', "Version 7", "Black Ops III")
+		),
 		default='7'
 	) # type: ignore
 
 	use_selection: BoolProperty(
-		name="Selection only",
+		name="Selection Only",
 		description=("Export selected meshes only "
 					 "(object or weight paint mode)"),
-		default=True
+		default=true
 	) # type: ignore
 
 	global_scale: FloatProperty(
-		name="Scale",
+		name="Global Scale",
 		min=0.001, max=1000.0,
+		step = 10,
 		default=1.0,
 	) # type: ignore
 
 	apply_unit_scale: BoolProperty(
-		name="Apply Unit",
+		name="Apply Unit Scale",
 		description="Scale all data according to current Blender size,"
 					" to match CoD units",
-		default=False,
+		default=false,
 	) # type: ignore
 
 	use_vertex_colors: BoolProperty(
-		name="Vertex Colors",
-		description=("Export vertex colors "
-					 "(if disabled, black color will be used)"),
-		default=True
+		name="Export Vertex Colors",
+		description="If disabled, default full white will be used, as T7 expects.",
+		default=true
 	) # type: ignore
 
-	"""
-	#  White is 1 (opaque), black 0 (invisible)
-	use_vertex_colors_alpha: BoolProperty(
-		name="Calculate Alpha",
-		description=("Automatically calculate alpha channel for vertex colors "
-					 "by averaging the RGB color values together "
-					 "(if disabled, 1.0 is used)"),
-		default=False
-	) # type: ignore
-	"""
-
+	# Might remove this at some point - pv
 	use_vertex_colors_alpha_mode: EnumProperty(
-		name="Vertex Alpha Source Layer",
-		description="The target vertex color layer to use for calculating the alpha values",  # nopep8
-		items=(('PRIMARY', "Active Layer",
-				"Use the active vertex color layer to calculate alpha"),
-			   ('SECONDARY', "Secondary Layer",
-				("Use the secondary (first inactive) vertex color layer to calculate alpha "  # nopep8
-				 "(If only one layer is present, the active layer is used)")),
-			   ),
+		name="Vertex Color Source Layer",
+		description="The target vertex color layer to use",
+		items=(
+			(
+				'PRIMARY',
+				"Active Layer",
+				"Use the active vertex color layer"
+			),
+			(
+				'SECONDARY',
+				"Secondary Layer",
+				"Use the first inactive (secondary) vertex color layer "
+					"(If only one layer is present, the active layer is used)"
+			),
+		),
 		default='PRIMARY'
 	) # type: ignore
 
-	use_vertex_cleanup: BoolProperty(
-		name="Clean Up Vertices",
-		description=("Try this if you have problems converting to xmodel. "
-					 "Skips vertices which aren't used by any face "
-					 "and updates references."),
-		default=False
+	should_merge_by_distance: BoolProperty(
+		name="Merge by Distance",
+		description=(
+			"Perform a \"Merge by distance\" operation on export.\n"
+			" - Try this if APE's output window shows the \"Vertex normal is 0\" error\n"
+			" - This does not affect the original mesh"
+		),
+		default=false
+	) # type: ignore
+
+	vert_merge_distance: FloatProperty(
+		name="Merge Distance",
+		description="Distance option for \"Merge by Distance\" option above.\n" \
+		"Click me to see the proper value - my last digit gets cut off",
+		min=.00001, max=10.0,
+		step = 1,
+		default=.0001,
 	) # type: ignore
 
 	apply_modifiers: BoolProperty(
 		name="Apply Modifiers",
 		description="Apply all mesh modifiers (except Armature)",
-		default=True
+		default=true
 	) # type: ignore
 
 	# Unused
@@ -671,14 +704,14 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		name="Armature",
 		description=("Export bones "
 					 "(if disabled, only a 'tag_origin' bone will be written)"),  # nopep8
-		default=False
+		default=false
 	) # type: ignore
 
 	use_weight_min: BoolProperty(
 		name="Minimum Bone Weight",
 		description=("Try this if you get 'too small weight' "
 					 "errors when converting"),
-		default=False,
+		default=false,
 	) # type: ignore
 
 	use_weight_min_threshold: FloatProperty(
@@ -690,36 +723,39 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		precision=6
 	) # type: ignore
 
-	def execute(self, context):
+	def execute( self, context ):
 		self.report( { 'INFO' }, "Exporting XModel..." )
 
 		print()
 		print( '=' * 10 + " EXPORT XMODEL " + '=' * 10 )
 
 		from . import export_xmodel
-		start_time = time.perf_counter()
+		start_time = timer()
 
 		ignore = ( "filter_glob", "check_existing" )
 		result = None
+
 		try:
 			result = export_xmodel.save(
 				self, context,
-				**self.as_keywords( ignore=ignore )
+				**self.as_keywords( ignore=ignore ) # type: ignore
 			)
 		except Exception as _e:
 			shared.add_warning(
 				"An error occured while exporting the XModel!\n"
-				"Please go to 'Blender Preferences' -> 'Add-ons' -> 'pv_blender_cod' -> 'Report a Bug' and let me know!"
+				"Please go to 'Blender Preferences' → 'Add-ons' → 'pv_blender_cod' → 'Report a Bug' and let me know!"
 				"\nError:\n" + _e.__str__()
 			)
 
 			traceback.print_exc()
+
 		
 		if not result:
-			_time = shared.timef( time.perf_counter() - start_time )
+			_time = console.timef( timer() - start_time )
+			str_finished = f"Export finished in { _time }."
 
-			self.report( { 'INFO' }, f"Export finished in { _time }." )
-			print( f"Export finished in { _time }." )
+			self.report( { 'INFO' }, str_finished )
+			print( str_finished )
 
 			_ret_val = { 'FINISHED' }
 		else:
@@ -742,7 +778,7 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		'''
 		import os
 		from bpy_extras.io_utils import _check_axis_conversion
-		change_ext = False
+		change_ext = false
 		change_axis = _check_axis_conversion(self)
 
 		check_extension = self.check_extension
@@ -765,7 +801,7 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 
 				if filepath != self.filepath:
 					self.filepath = filepath
-					change_ext = True
+					change_ext = true
 
 		return (change_ext or change_axis)
 
@@ -781,62 +817,153 @@ class COD_MT_export_xmodel(bpy.types.Operator, ExportHelper):
 		return super().invoke(context, event)
 
 	def draw(self, context):
-		layout = self.layout
+		layout: bpy.types.UILayout = self.layout # type: ignore
 
-		layout.prop(self, 'target_format', expand=True)
-		layout.prop(self, 'version')
+
+		# layout.separator( factor = 1 )
+
+
+		#################
+		## File Format ##
+		#################
+
+
+		box = layout.box()
+		box.label(
+			text = "Export Format",
+			icon = 'FILE'
+		)
+
+		row = box.row()
+		col = row.column( align = true )
+		col.label( text = 'XModel Version' )
+		col = row.column()
+		col.prop(
+			self, 'version',
+			text = ''
+		)
+		box.prop(
+			self, 'target_format',
+			expand = true
+		)
+
+
+		# layout.separator( factor = 1 )
+
+
+		#############
+		## GENERAL ##
+		#############
+
+		box = layout.box()
+		box.label(
+			text = "General",
+			icon = 'SETTINGS'
+		)
 
 		# Calculate number of selected mesh objects
-		if context.mode in ('OBJECT', 'PAINT_WEIGHT'):
+		if context.mode in ( 'OBJECT', 'PAINT_WEIGHT' ):
 			objects = bpy.data.objects
-			meshes_selected = len(
-				[m for m in objects if m.type == 'MESH' and m.select_get()])
+			n_selected = len(
+				[ m for m in objects if m.type == 'MESH' and m.select_get() ]
+			)
 		else:
-			meshes_selected = 0
+			n_selected = None
 
-		layout.prop(self, 'use_selection',
-					text="Selected Only (%d meshes)" % meshes_selected)
+		_text = f"Selection Only "
+		if n_selected: _text += f"({n_selected} mesh{'es' if n_selected - 1 else ''})"
+		else: _text += '(No valid meshes)'
 
-		row = layout.row(align=True)
-		row.prop(self, "global_scale")
-		sub = row.row(align=True)
-		sub.prop(self, "apply_unit_scale", text="")
+		box.prop(
+			self, 'use_selection',
+			text = _text
+		) 
+		box.prop(
+			self, 'apply_modifiers'
+		)
+		box.prop(
+			self, 'should_merge_by_distance'
+		)
+		row = box.row( align = true )
+		row.enabled = self.should_merge_by_distance
+		row.prop(
+			self, 'vert_merge_distance'
+		)
 
-		# Axis?
 
-		sub = layout.split(factor=0.5)
-		sub.prop(self, 'apply_modifiers')
-		sub = sub.row()
-		sub.enabled = self.apply_modifiers
-		#sub.prop(self, 'modifier_quality', expand=True)
+		# layout.separator( factor = 1 )
 
-		# layout.prop(self, 'custom_normals')
 
-		if int(self.version) >= 6:
-			row = layout.row()
-			row.prop(self, 'use_vertex_colors')
-			sub = row.split()
-			sub.enabled = self.use_vertex_colors
-			#sub.prop(self, 'use_vertex_colors_alpha')
-			sub = layout.split()
-			sub.enabled = self.use_vertex_colors #and self.use_vertex_colors_alpha
-			sub = sub.split(factor=0.5)
-			sub.label(text="Vertex Alpha Layer")
-			sub.prop(self, 'use_vertex_colors_alpha_mode', text="")
+		################
+		## VTX COLORS ##
+		################
 
-		layout.prop(self, 'use_vertex_cleanup')
+		if int( self.version ) >= 6:
+			box = layout.box()
+			box.label(
+				text = 'Vertex Colors',
+				icon = 'COLOR'
+			)
 
-		layout.prop(self, 'use_armature')
+			box.prop(
+				self, 'use_vertex_colors'
+			)
+			box.enabled = self.use_vertex_colors
+			box.label(
+				text = "Vertex Color Layer",
+				# icon = 'LAYER_USED'
+			)
+
+			box.prop(
+				self, 'use_vertex_colors_alpha_mode',
+				text = ''
+			)
+
+
+		##############
+		## ARMATURE ##
+		##############
+
 		box = layout.box()
-		box.enabled = self.use_armature
-		sub = box.column(align=True)
-		sub.prop(self, 'use_weight_min')
-		sub = box.split(align=True)
-		sub.active = self.use_weight_min
-		sub.prop(self, 'use_weight_min_threshold')
+		box.label(
+			text = "Armature / Joints",
+			icon = 'ARMATURE_DATA'
+		)
+
+		box.prop(
+			self, 'use_armature',
+			text = 'Export Armature'
+		)
+		row = box.row()
+		row.enabled = self.use_armature
+		row.prop( self, 'use_weight_min' )
+		row = box.row()
+		row.active = self.use_weight_min
+		row.prop( self, 'use_weight_min_threshold' )
 
 
-class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
+		# layout.separator( factor = 1 )
+
+
+		###########
+		## SCALE ##
+		###########
+
+		box = layout.box()
+		box.label(
+			text = "Scale",
+			icon = 'CON_SIZELIKE'
+		)
+
+		box.prop(
+			self, "apply_unit_scale"
+		)
+		box.prop(
+			self, "global_scale"
+		)
+
+
+class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 	bl_idname = "export_scene.xanim"
 	bl_label = 'Export XAnim'
 	bl_description = "Export a CoD XANIM_EXPORT / XANIM_BIN File"
@@ -865,7 +992,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 	use_selection: BoolProperty(
 		name="Selection Only",
 		description="Export selected bones only (pose mode)",
-		default=False
+		default=false
 	)
 
 	global_scale: FloatProperty(
@@ -878,13 +1005,13 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		name="Apply Unit",
 		description="Scale all data according to current Blender size,"
 					" to match CoD units",
-		default=True,
+		default=true,
 	)
 
 	use_all_actions: BoolProperty(
 		name="Export All Actions",
 		description="Export *all* actions rather than just the active one",
-		default=False
+		default=false
 	)
 
 	filename_format: StringProperty(
@@ -900,7 +1027,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 	use_notetracks: BoolProperty(
 		name="Notetracks",
 		description="Export notetracks",
-		default=True
+		default=true
 	)
 
 	use_notetrack_mode: EnumProperty(
@@ -932,7 +1059,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		name="Write NT_EXPORT",
 		description=("Create an NT_EXPORT file for "
 					 "the exported XANIM_EXPORT file(s)"),
-		default=False
+		default=false
 	)
 
 	use_frame_range_mode: EnumProperty(
@@ -962,7 +1089,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		name="Custom Framerate",
 		description=("Force all written files to use a user defined "
 					 "custom framerate rather than the scene's framerate"),
-		default=False
+		default=false
 	)
 
 	use_framerate: IntProperty(
@@ -978,14 +1105,14 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		self.report( { 'INFO' }, "Exporting XAnim..." )
 
 		from . import export_xanim
-		start_time = time.perf_counter()
+		start_time = timer()
 		result = export_xanim.save(
 			self,
 			context,
 			**self.as_keywords( ignore = ( "filter_glob", "check_existing" ) ) )
 
 		if not result:
-			msg = "Export finished in %s." % shared.timef( time.perf_counter() - start_time )
+			msg = "Export finished in %s." % console.timef( timer() - start_time )
 			self.report( { 'INFO' }, msg )
 			_ret_val = { 'FINISHED' }
 		else:
@@ -1007,7 +1134,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		'''
 		import os
 		from bpy_extras.io_utils import _check_axis_conversion
-		change_ext = False
+		change_ext = false
 		change_axis = _check_axis_conversion(self)
 
 		check_extension = self.check_extension
@@ -1030,7 +1157,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 
 				if filepath != self.filepath:
 					self.filepath = filepath
-					change_ext = True
+					change_ext = true
 
 		return (change_ext or change_axis)
 
@@ -1048,12 +1175,12 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 
 	def draw(self, context):
 		layout = self.layout
-		layout.prop(self, 'target_format', expand=True)
+		layout.prop(self, 'target_format', expand=true)
 		layout.prop(self, 'use_selection')
 
-		row = layout.row(align=True)
+		row = layout.row(align=true)
 		row.prop(self, "global_scale")
-		sub = row.row(align=True)
+		sub = row.row(align=true)
 		sub.prop(self, "apply_unit_scale", text="")
 
 		action_count = len(bpy.data.actions)
@@ -1065,10 +1192,10 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 
 		# Filename Options
 		if self.use_all_actions and action_count > 0:
-			sub = layout.column(align=True)
+			sub = layout.column(align=true)
 			sub.label(text="Filename Options:")
 			box = sub.box()
-			sub = box.column(align=True)
+			sub = box.column(align=true)
 
 			sub.prop(self, 'filename_format')
 
@@ -1088,11 +1215,11 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 			sub.label(text=example, icon=icon)
 
 		# Notetracks
-		col = layout.column(align=True)
+		col = layout.column(align=true)
 		sub = col.row()
 		sub = sub.split(factor=0.45)
 		sub.prop(self, 'use_notetracks', text="Use Notetrack")
-		sub.row().prop(self, 'use_notetrack_mode', expand=True)
+		sub.row().prop(self, 'use_notetrack_mode', expand=true)
 		sub = col.column()
 		sub.enabled = self.use_notetrack_mode != 'NONE'
 
@@ -1111,7 +1238,7 @@ class COD_MT_export_xanim(bpy.types.Operator, ExportHelper):
 		sub.label(text="Frame Range:")
 		sub.prop(self, 'use_frame_range_mode', text="")
 
-		sub = layout.row(align=True)
+		sub = layout.row(align=true)
 		sub.enabled = self.use_frame_range_mode == 'CUSTOM'
 		sub.prop(self, 'frame_start')
 		sub.prop(self, 'frame_end')
@@ -1163,11 +1290,6 @@ def menu_func_export_submenu(self, context):
 	self.layout.menu(COD_MT_export_submenu.bl_idname, text="Call of Duty")
 
 
-'''
-	CLASS REGISTRATION
-	SEE https://wiki.blender.org/wiki/Reference/Release_Notes/2.80/Python_API/Addons
-'''
-
 classes = (
 	BlenderCoD_Preferences,
 	COD_MT_import_xmodel,
@@ -1180,6 +1302,7 @@ classes = (
 	updater.ConfirmUpdateOperator,
 	updater.CancelDialogOperator,
 	updater.ISeeHowItIsOperator,
+	updater.ViewFullChangelogOnGithubOperator,
 	shared.PV_OT_message_list_popup,
 )
 

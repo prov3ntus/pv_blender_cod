@@ -856,11 +856,11 @@ class Model(XBinIO, object):
 			header_message = ""
 		):
 		# If there is no current version, fallback to the argument
-		version = validate_version(self, version)
+		version = validate_version( self, version )
 		
 		# NOTE: Cosmetic bones are only used by version 7 and later
 		if version == 7:
-			cosmetics = len([bone for bone in self.bones if bone.cosmetic])
+			cosmetics = len( [ bone for bone in self.bones if bone.cosmetic ] )
 			
 			if cosmetics > 0:
 				print( "Cosmetic bones detected - exporting..." )

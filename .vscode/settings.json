@@ -1,0 +1,9 @@
+{
+	"python.defaultInterpreterPath":
+		"C:/Program Files/Blender Foundation/Blender 4.0/4.0/python/bin/python.exe",
+	"python.analysis.extraPaths": [
+	"C:/Program Files/Blender Foundation/Blender 4.0/4.0/python/lib/site-packages"
+	],
+	"python.analysis.stubPath":
+		"C:/Program Files/Blender Foundation/Blender 4.0/4.0/python/lib/site-packages/fake_bpy_module-20250616.dist-info"
+}

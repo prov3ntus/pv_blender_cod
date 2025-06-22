@@ -18,30 +18,36 @@
 
 # <pep8 compliant>
 
-import bpy
+import subprocess, sys, bpy, datetime
+from .pv_py_utils import console
+from .pv_py_utils.stdlib import *
 
 plugin_preferences = None
 warning_messages: list[ str ] = []
 
-def get_metadata_string(filepath):
+def get_metadata_string( filepath ):
 	msg = "// Exported using pv_blender_cod in Blender %s\n" % bpy.app.version_string
-	msg += "// Export filename: '%s'\n" % filepath.replace("\\", "/")
-	if bpy.data.filepath is None:
+	msg += f"// Exported on {datetime.datetime.now().strftime( '%B %d, %Y at %H:%M:%S' )}\n"
+
+	msg += "// Export filename: '%s'\n" % filepath.replace( "\\", "/" )
+
+	if bpy.data.filepath in ( None, '' ):
 		source_file = "<none>"
 	else:
-		source_file = bpy.data.filepath.replace('\\', '/')
-	msg += "// Source filename: '%s'\n" % source_file
-	return msg
+		source_file = "'%s'" % bpy.data.filepath.replace( '\\', '/' )
+
+	return msg + f"// Source filename: {source_file}\n"
 
 
-def calculate_unit_scale_factor(scene, apply_unit_scale=False):
+def calculate_unit_scale_factor( scene, apply_unit_scale = false ):
 	'''
 	Calcualte the conversion factor to convert from
-	 Blender units (Usually 1 meter) to inches (CoD units).
+	Blender units (Usually 1 meter) to inches (CoD units).
+	
 	If no explicit unit system is set in the scene settings, we fallback to the
-	 global Blender-CoD scale units. If that option is disabled we use a 1:1
-	 scale factor to convert from Blender Units to Inches
-	 (Assuming 1 BU is 1 inch)
+	global Blender-CoD scale units. If that option is disabled we use a 1:1
+	scale factor to convert from Blender Units to Inches
+	(Assuming 1 BU is 1 inch)
 	'''
 	if not apply_unit_scale:
 		return 1.0
@@ -52,49 +58,9 @@ def calculate_unit_scale_factor(scene, apply_unit_scale=False):
 		return scene.unit_settings.scale_length / 0.0254
 
 
-units_of_time = (
-	( 'weeks',	604_800	),
-	( 'days',	86400	),
-	( 'hours',	3600	),
-	( 'mins',	60		),
-	( 'secs',	1		),
-	( 'ms',		10**-3	),
-	( 'μs',		10**-6	),
-	( 'ns',		10**-9	)
-)
-
-def timef( seconds: float, granularity = 2 ):
-	"""Formats the given time from seconds into a readable string.
-
-	E.g.:
-	- 180 (w/ a granularity of 2) would return "3 mins"
-	- 192.152 (w/ a granularity of 2) would return "3 mins, 12 secs"
-	- 192.152 (w/ a granularity of 3) would return "3 mins, 12 secs, 151 ms"
-	- 4825 (w/ a granularity of 2) would return "1 hour, 20 mins"
-	- 4825 (w/ a granularity of 3) would return "1 hour, 20 mins, 25 secs"
-	"""
-	result = []
-
-	for name, count in units_of_time:
-		value = seconds // count
-		if value:
-			seconds -= value * count
-			if value == 1:
-				name = name.rstrip( 's' )
-			result.append( "%i %s" % ( int( value ), name ) )
-	
-	if not result:
-		result = [ "0 secs" ]
-
-	return ', '.join( result[ :granularity ] )
-
-
-
 def join_objects_temporarily(objects):
 	"""Creates a temporary joined copy of objects without modifying the originals."""
 
-	import bpy
-	
 	if not objects:
 		return None
 
@@ -114,7 +80,7 @@ def join_objects_temporarily(objects):
 		copies.append(obj_copy)
 
 	for obj in copies:
-		obj.select_set(True)
+		obj.select_set( true )
 	bpy.context.view_layer.objects.active = copies[0]
 
 	bpy.ops.object.join()
@@ -123,11 +89,12 @@ def join_objects_temporarily(objects):
 	# Reselect what we prev. had selected
 	bpy.ops.object.select_all(action='DESELECT')
 	for obj in og_selection:
-		obj.select_set(True)
+		obj.select_set( true )
 
 	return joined
 
-def raise_error( message ):
+
+def raise_error( msg ):
 	class ErrorOperator( bpy.types.Operator ):
 		bl_idname = "wm.error_operator"
 		bl_label = "pv_blender_cod Error"
@@ -144,11 +111,11 @@ def raise_error( message ):
 	if "wm.error_operator" not in bpy.types.Operator.__dict__:
 		bpy.utils.register_class( ErrorOperator )
 
-	bpy.ops.wm.error_operator( 'INVOKE_DEFAULT', message = message )
+	bpy.ops.wm.error_operator( 'INVOKE_DEFAULT', message = msg )
 
-import bpy
 
 class PV_OT_message_list_popup(bpy.types.Operator):
+	
 	bl_idname = "wm.pv_message_list_popup"
 	bl_label = "Warnings occured during export!"
 
@@ -180,6 +147,7 @@ class PV_OT_message_list_popup(bpy.types.Operator):
 			icon = 'INFO'
 		)
 
+
 def show_warnings():
 	global warning_messages
 
@@ -189,10 +157,13 @@ def show_warnings():
 	msg_str = "\n".join( warning_messages )
 	warning_messages = []
 	# print( "[ DEBUG ] Showing warnings dialog..." )
+	print()
 	bpy.ops.wm.pv_message_list_popup( 'INVOKE_DEFAULT', messages = msg_str )
+	print()
 
 def add_warning( _msg: str ):
-	global warning_messages
+	console.warning( _msg )
 	
-	print( '[ WARNING ]', _msg )
+	global warning_messages
 	warning_messages.append( '--> ' + _msg )
+
