@@ -39,59 +39,13 @@ def get_metadata_string( filepath ):
 	return msg + f"// Source filename: {source_file}\n"
 
 
-def calculate_unit_scale_factor( scene, apply_unit_scale = false ):
-	'''
-	Calcualte the conversion factor to convert from
-	Blender units (Usually 1 meter) to inches (CoD units).
+def calculate_unit_scale_factor( scene ):
+	scale = plugin_preferences.scale_length
 	
-	If no explicit unit system is set in the scene settings, we fallback to the
-	global Blender-CoD scale units. If that option is disabled we use a 1:1
-	scale factor to convert from Blender Units to Inches
-	(Assuming 1 BU is 1 inch)
-	'''
-	if not apply_unit_scale:
-		return 1.0
-
 	if scene.unit_settings.system != 'NONE':
-		return plugin_preferences.scale_length / 0.0254
-	else:
-		return scene.unit_settings.scale_length / 0.0254
-
-
-def join_objects_temporarily(objects):
-	"""Creates a temporary joined copy of objects without modifying the originals."""
-
-	if not objects:
-		return None
-
-	og_selection = set(objects)
-
-	bpy.ops.object.select_all(action='DESELECT')
-
-	copies = []
-	for obj in objects:
-		obj_copy = obj.copy()
-		obj_copy.data = obj.data.copy()
-		# object.data doesn't contain transforms
-		# so apply them here:
-		obj_copy.matrix_world = obj.matrix_world
-
-		bpy.context.collection.objects.link(obj_copy)
-		copies.append(obj_copy)
-
-	for obj in copies:
-		obj.select_set( true )
-	bpy.context.view_layer.objects.active = copies[0]
-
-	bpy.ops.object.join()
-	joined = bpy.context.object
+		scale *= scene.unit_settings.scale_length
 	
-	# Reselect what we prev. had selected
-	bpy.ops.object.select_all(action='DESELECT')
-	for obj in og_selection:
-		obj.select_set( true )
-
-	return joined
+	return scale
 
 
 def raise_error( msg ):
@@ -114,7 +68,7 @@ def raise_error( msg ):
 	bpy.ops.wm.error_operator( 'INVOKE_DEFAULT', message = msg )
 
 
-class PV_OT_message_list_popup(bpy.types.Operator):
+class PV_OT_message_list_popup( bpy.types.Operator ):
 	
 	bl_idname = "wm.pv_message_list_popup"
 	bl_label = "Warnings occured during export!"

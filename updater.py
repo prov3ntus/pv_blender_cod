@@ -16,7 +16,7 @@ LATEST_VER_URL = "https://github.com/w4133d/pv_blender_cod/releases/latest"
 ADDON_NAME = "_pv_blender_cod"
 BLENDER_ADDONS_PATH = bpy.utils.user_resource( 'SCRIPTS', path="addons" )
 DOWNLOAD_URL = None
-AUTO_UPDATE_PASSED = false
+AUTO_UPDATE_PASSED = false # So we can hide the "Don't ask again" checkbox when checking for updates thru plugin preferences
 
 NEW_VERSION = None
 NEW_VER_DESC = None
@@ -26,8 +26,6 @@ UPDATE_FAILED = -1
 UPDATE_SUCCESS = 0
 UPDATE_UPTODATE = 1
 UPDATE_AVAILABLE = 2
-
-update_dialog = None
 
 def get_latest_version() -> Union[ Exception, str ]:
 	"""Fetch latest version from GitHub releases"""
@@ -152,6 +150,11 @@ class UpdateOperator( bpy.types.Operator ):
 	bl_label = "Update pv_blender_cod"
 
 	def execute(self, context):
+		if gvar.is_updating:
+			return
+		
+		gvar.is_updating = true
+
 		print( "[ pv_blender_cod ] Checking for updates..." )
 		updated = check_for_update()
 
@@ -164,32 +167,9 @@ class UpdateOperator( bpy.types.Operator ):
 
 		# self.report( {'INFO'}, f"BlenderCoD updated successfully (v{LOCAL_VERSION}). - pv" )
 
+		gvar.is_updating = false
+
 		return {'FINISHED'}
-
-
-class CancelDialogOperator( bpy.types.Operator ):
-	bl_idname = "wm.cancel_dialog"
-	bl_label = "Cancel"
-	bl_description = "Why TF would you cancel bitch, like " \
-	"I did not just spend a whole day and a half straight of my life " \
-	"to make this whole damn auto-updater just so you " \
-	"can sit there and fucking NOT USE IT BRUH LIKE PRESS YES, WTF!?"
-	
-	def execute(self, context):
-		print( "Cancel dialog operator execute()" )
-
-		global update_dialog
-		if update_dialog: update_dialog.__apply_dont_ask_again__()
-		
-		# Damn... well fuck you, then.
-		bpy.ops.wm.cancel_response( 'INVOKE_DEFAULT' )
-
-		global AUTO_UPDATE_PASSED
-		
-		AUTO_UPDATE_PASSED = true
-
-		# return {'CANCELLED'} # This will run self.cancel()
-		return { 'FINISHED' }
 
 
 class ViewFullChangelogOnGithubOperator( bpy.types.Operator ):
@@ -217,15 +197,8 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 
 	def execute( self, context ):
-		print( "Confirm update operator execute()" )
-		# Store the preference to skip confirmation
-		shared.plugin_preferences.dont_ask_again = self.dont_ask_again
+		shared.plugin_preferences.auto_update_enabled = not self.dont_ask_again
 
-		if self.__apply_dont_ask_again__():
-			return {'FINISHED'}
-
-		#if check_for_update() == UPDATE_AVAILABLE: # I don't think we need this
-		# ... cause this operator is only ran when check_for_updates() returns UPDATE_AVAILABLE
 		self.report( { 'INFO' }, "Updating BlenderCoD..." )
 		update()
 		
@@ -237,73 +210,41 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 
 	def invoke(self, context, event):
-		global update_dialog
-		# Store a reference to self so we can call __apply_dont_ask_again__()
-		update_dialog = self
-		# return context.window_manager.invoke_popup( self, width = 400 )
-		return context.window_manager.invoke_props_dialog( self, width = 400 )
+		return context.window_manager.invoke_props_dialog( self, width = 600 )
 
 
 	def cancel( self, context ):
-		print( "Confirm update operator cancel()" )
-		# We don't want to save the preference here if their mouse moves
-		# away from the dialog and it cancels
-		""" 	
-		# Store the preference to skip confirmation
-		shared.plugin_preferences.dont_ask_again = self.dont_ask_again
-
-		if shared.plugin_preferences.dont_ask_again:
-			shared.plugin_preferences.auto_update_enabled = false
-			self.report({'INFO'}, "BlenderCoD auto-updates disabled. - pv")
-		"""
-
 		global AUTO_UPDATE_PASSED
 		
 		AUTO_UPDATE_PASSED = true
 
-		return None
+		shared.plugin_preferences.auto_update_enabled = not self.dont_ask_again
 
-
-	def __apply_dont_ask_again__( self ):
-		# Store the preference to skip confirmation
-		shared.plugin_preferences.dont_ask_again = self.dont_ask_again
-
-		if self.dont_ask_again:
-			shared.plugin_preferences.auto_update_enabled = false
-			self.report({'INFO'}, "BlenderCoD auto-updates disabled. - pv")
-		
-		return self.dont_ask_again
-
+		return {'CANCELLED'}
 
 	def draw( self, context ):
-		global AUTO_UPDATE_PASSED
 
 		layout = self.layout
-		layout.scale_y = 1.2
+		# layout.scale_y = 1.2
 
 		layout.label(
 			text = "BlenderCoD Update - pv",
 			icon = 'INFO'
 		)
 		layout.label(
-			text = f"An update is available!",
-		)
-		layout.label(
-			text = f"Current: v{LOCAL_VERSION}. New: v{NEW_VERSION}."
+			text = f"An update is available! Current: v{LOCAL_VERSION}. New: v{NEW_VERSION}.",
 		)
 		if NEW_VER_DESC is not None:
 			layout.label(
-				text = f"Changes: {NEW_VER_DESC}"
+				text = f"{NEW_VER_DESC}"
 			)
 		layout.label(
-			text = "Would you like to update now?",
+			text = "You can always check for updates in Preferences > Addons. Would you like to update now?",
 		)
 
+		global AUTO_UPDATE_PASSED
+
 		if shared.plugin_preferences.auto_update_enabled and not AUTO_UPDATE_PASSED:
-			layout.label(
-				text = "You can always check for BlenderCoD updates in Preferences > Addons.",
-			)
-			
 			# Checkbox inside dialog
 			layout.prop( self, "dont_ask_again" )
 
@@ -314,25 +255,4 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 			text = "View Full Changelog (github.com)",
 			icon = "URL"
 		)
-		layout.operator(
-			"wm.cancel_dialog",
-			text = "Cancel",
-			icon = "CANCEL"
-		)
 
-class ISeeHowItIsOperator( bpy.types.Operator ):
-	bl_idname = "wm.cancel_response"
-	bl_label = "Wow..."
-
-	def execute( self, context ):
-		return { 'FINISHED' }
-
-	def invoke(self, context, event):
-		return context.window_manager.invoke_props_dialog( self, width = 350 )
-
-	def draw( self, context ):
-		layout = self.layout
-
-		layout.label(
-			text = "Damn... well fuck you, then. I see how it is."
-		)

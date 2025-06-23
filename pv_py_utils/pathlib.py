@@ -2,12 +2,8 @@ import os
 from typing import Union
 from ..pv_py_utils import console
 
-def exists( __file__: Union[ str, os.PathLike ] ) -> bool:
-	return os.path.exists( __file__ )
-
 def is_empty( __file__: Union[ str, os.PathLike ] ) -> bool:
-	with open( __file__ ) as f:
-		return f.read().strip().__len__() == 0
+	with open( __file__ ) as f: return f.read().strip().__len__() == 0
 
 def get_parent_dir( __file__: Union[ str, os.PathLike ], dirs_to_move_up: int = 1 ) -> Union[ str, os.PathLike, None ]:
 	_path = __file__
@@ -19,14 +15,6 @@ def get_parent_dir( __file__: Union[ str, os.PathLike ], dirs_to_move_up: int = 
 	# My code:
 	#indexes = [i for i in range(len(__file__)) if __file__.startswith(( '\\', '/' ), i)]
 	#return __file__[ :indexes[ -1 ] ]
-
-def get_dir_name( __file__: Union[ str, os.PathLike ] ):
-	"""Gets the directory of the folder from a file path"""
-	return get_folder_name( __file__ )
-
-def get_folder_name( __file__: Union[ str, os.PathLike ] ):
-	"""Gets the directory of the folder from a file path"""
-	return os.path.dirname( __file__ )
 
 def get_file_name( __file__: Union[ str, os.PathLike ], extention: bool = False ) -> str:
 	"""Retuns the file name from a full file path ( w/ an extention if 'extention' param is true )"""
@@ -180,8 +168,8 @@ def delete_file( _path: Union[ str, os.PathLike ] ) -> None:
 
 __all__ = (
 	# Get names / types
-	'get_dir_name', 'get_folder_name', 'get_parent_dir',
-	'get_file_name', 'get_base_name', 'get_file_type',
+	'get_parent_dir', 'get_file_name',
+	'get_base_name', 'get_file_type',
 	'get_file_extension', 'get_files_in_dir',
 
 	# Get sizes

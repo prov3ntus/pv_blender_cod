@@ -29,12 +29,12 @@ from . import pv_py_utils
 from .pv_py_utils import console, log, pathlib, stdlib, sysframe
 from .pv_py_utils.stdlib import *
 
-print( sys.version )
+
 
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": ( 0, 8, 8 ),
+	"version": ( 0, 8, 9 ),
 	"blender": ( 3, 0, 0 ),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",
@@ -61,8 +61,8 @@ def register():
 	for cls in classes:
 		bpy.utils.register_class(cls)
 
-	# __name__ is the same as the package name (pv_blender_cod)
-	preferences = bpy.context.preferences.addons[__name__].preferences
+	# __name__ is the same as the package name in __init__.py (_pv_blender_cod)
+	preferences = bpy.context.preferences.addons[ __name__ ].preferences
 
 	# Each of these appended functions is executed every time the
 	# corresponding menu list is shown
@@ -81,9 +81,6 @@ def register():
 	shared.plugin_preferences = preferences
 
 	# Check for update if auto-update is enabled.
-	# At some point, I want to somehow thread this all
-	# off, so that Blender doesn't take long to load. Cause right now,
-	# it has to wait for the server request in `updater.check_for_update()`
 	if preferences.auto_update_enabled:
 		update_result = updater.check_for_update()
 
@@ -176,7 +173,7 @@ class BlenderCoD_Preferences( AddonPreferences ):
 		max=100000.0,
 		precision=6,
 		step=1,
-		default=1.0
+		default=.0254
 	) # type: ignore
 
 	auto_update_enabled: BoolProperty(
@@ -260,17 +257,19 @@ else:
 	from .pv_py_utils import console, log, pathlib, stdlib, sysframe
 
 
-class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
+class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ): # type: ignore
 	bl_idname = "import_scene.xmodel"
 	bl_label = "Import XModel"
-	bl_description = "Import a CoD xmodel_export / xmodel_bin File"
+	bl_description = "Import a CoD XModel File"
 	bl_options = {'PRESET'}
 
 	filename_ext = ".xmodel_export;.xmodel_bin"
 	filter_glob: StringProperty(
 		default="*.xmodel_export;*.xmodel_bin",
 		options={'HIDDEN'}
-	)
+	) # type: ignore
+
+	files: CollectionProperty( type=bpy.types.PropertyGroup ) # type: ignore
 
 	ui_tab: EnumProperty(
 		items=(('MAIN', "Main", "Main basic settings"),
@@ -279,57 +278,50 @@ class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
 		name="ui_tab",
 		description="Import options categories",
 		default='MAIN'
-	)
+	) # type: ignore
 
 	global_scale: FloatProperty(
 		name="Scale",
 		min=0.001, max=1000.0,
 		default=1.0,
-	)
-
-	apply_unit_scale: BoolProperty(
-		name="Apply Unit",
-		description="Scale all data according to current Blender size,"
-					" to match CoD units",
-		default=true,
-	)
+	) # type: ignore
 
 	use_single_mesh: BoolProperty(
 		name="Combine Meshes",
 		description="Combine all meshes in the file into a single object",  # nopep8
 		default=true
-	)
+	) # type: ignore
 
 	use_dup_tris: BoolProperty(
 		name="Import Duplicate Tris",
 		description=("Import tris that reuse the same vertices as another tri "
 					 "(otherwise they are discarded)"),
 		default=true
-	)
+	) # type: ignore
 
 	use_custom_normals: BoolProperty(
 		name="Import Normals",
 		description=("Import custom normals, if available "
 					 "(otherwise Blender will recompute them)"),
 		default=true
-	)
+	) # type: ignore
 
 	use_vertex_colors: BoolProperty(
 		name="Import Vertex Colors",
 		default=true
-	)
+	) # type: ignore
 
 	use_armature: BoolProperty(
 		name="Import Armature",
 		description="Import the skeleton",
 		default=true
-	)
+	) # type: ignore
 
 	use_parents: BoolProperty(
 		name="Import Relationships",
 		description="Import the parent / child bone relationships",
 		default=true
-	)
+	) # type: ignore
 
 	"""
 	force_connect_children : BoolProperty(
@@ -345,40 +337,61 @@ class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
 		name="Attach Model",
 		description="Attach head to body, gun to hands, etc.",
 		default=false
-	)
+	) # type: ignore
 
 	merge_skeleton: BoolProperty(
 		name="Merge Skeletons",
 		description="Merge imported skeleton with the selected skeleton",
 		default=false
-	)
+	) # type: ignore
 
 	use_image_search: BoolProperty(
 		name="Image Search",
 		description=("Search subdirs for any associated images "
 					 "(Warning, may be slow)"),
 		default=true
-	)
+	) # type: ignore
 
-	def execute(self, context):
+	def execute(self, context): # type: ignore
 		self.report( {'INFO'}, "Importing XModel..." )
 
 		from . import import_xmodel
 		start_time = timer()
 
-		keywords = self.as_keywords(ignore=("filter_glob",
-											"check_existing",
-											"ui_tab"))
+		keywords: dict = self.as_keywords(
+			ignore=(
+				"filter_glob",
+				"check_existing",
+				"ui_tab",
+				"files",
+				"filepath"
+			)
+		) # type: ignore
 
-		result = import_xmodel.load(self, context, **keywords)
+		errors = []
+		for file in self.files:
+			_result = import_xmodel.load(
+				self, context,
+				filepath = os.path.join( os.path.dirname( self.filepath ), file.name ),
+				**keywords
+			)
 
-		if not result:
-			_time = console.timef( timer() - start_time )
-			self.report( { 'INFO' }, "Import finished in %s." % _time )
-			print( "Import finished in %s." % _time )
+			if _result:
+				errors.append( _result )
+
+
+		if not errors.__len__():
+			_rep_str = f"Import finished in {console.timef( timer() - start_time )}."
+			self.report( { 'INFO' },  _rep_str )
+			print( _rep_str )
 			_ret_val = { 'FINISHED' }
 		else:
-			self.report( { 'ERROR' }, result )
+			if errors.__len__() == 1:
+				self.report( { 'ERROR' }, errors[ 0 ] )
+			else:
+				self.report( { 'ERROR' }, "There were multiple import errors. Check console for more details." )
+			
+			for _err in errors: shared.add_warning( _err )
 			_ret_val = { 'CANCELLED' }
 		
 		shared.show_warnings()
@@ -388,7 +401,7 @@ class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
 
 
 	@classmethod
-	def poll(self, context):
+	def poll(self, context): # type: ignore
 		return (context.scene is not None)
 
 	def draw(self, context):
@@ -401,8 +414,6 @@ class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ):
 
 			row = layout.row(align=true)
 			row.prop(self, "global_scale")
-			sub = row.row(align=true)
-			sub.prop(self, "apply_unit_scale", text="")
 
 			layout.prop(self, 'use_single_mesh')
 
@@ -444,13 +455,6 @@ class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 		name="Scale",
 		min=0.001, max=1000.0,
 		default=1.0,
-	)
-
-	apply_unit_scale: BoolProperty(
-		name="Apply Unit",
-		description="Scale all data according to current Blender size,"
-					" to match CoD units",
-		default=true,
 	)
 
 	use_actions: BoolProperty(
@@ -518,12 +522,11 @@ class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 		from . import import_xanim
 		start_time = timer()
 
-		ignored_properties = ( "filter_glob", "files", "apply_unit_scale" )
+		ignored_properties = ( "filter_glob", "files" )
 		result = import_xanim.load(
-			self,
-			context,
-			self.apply_unit_scale,
-			**self.as_keywords(ignore=ignored_properties))
+			self, context,
+			**self.as_keywords( ignore = ignored_properties )
+		)
 
 		if not result:
 			_time = console.timef( timer() - start_time )
@@ -548,8 +551,6 @@ class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 
 		row = layout.row(align=true)
 		row.prop(self, "global_scale")
-		sub = row.row(align=true)
-		sub.prop(self, "apply_unit_scale", text="")
 
 		layout.prop(self, 'use_actions')
 		sub = layout.split()
@@ -628,13 +629,6 @@ class COD_MT_export_xmodel( bpy.types.Operator, ExportHelper ):
 		min=0.001, max=1000.0,
 		step = 10,
 		default=1.0,
-	) # type: ignore
-
-	apply_unit_scale: BoolProperty(
-		name="Apply Unit Scale",
-		description="Scale all data according to current Blender size,"
-					" to match CoD units",
-		default=false,
 	) # type: ignore
 
 	use_vertex_colors: BoolProperty(
@@ -956,9 +950,6 @@ class COD_MT_export_xmodel( bpy.types.Operator, ExportHelper ):
 		)
 
 		box.prop(
-			self, "apply_unit_scale"
-		)
-		box.prop(
 			self, "global_scale"
 		)
 
@@ -999,13 +990,6 @@ class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 		name="Scale",
 		min=0.001, max=1000.0,
 		default=1.0,
-	)
-
-	apply_unit_scale: BoolProperty(
-		name="Apply Unit",
-		description="Scale all data according to current Blender size,"
-					" to match CoD units",
-		default=true,
 	)
 
 	use_all_actions: BoolProperty(
@@ -1180,8 +1164,6 @@ class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 
 		row = layout.row(align=true)
 		row.prop(self, "global_scale")
-		sub = row.row(align=true)
-		sub.prop(self, "apply_unit_scale", text="")
 
 		action_count = len(bpy.data.actions)
 
@@ -1262,32 +1244,46 @@ class COD_MT_export_submenu(bpy.types.Menu):
 		menu_func_xanim_export(self, context)
 
 
-def menu_func_xmodel_import(self, context):
-	self.layout.operator(COD_MT_import_xmodel.bl_idname,
-						 text="CoD XModel (.xmodel_export, .xmodel_bin)")
+def menu_func_xmodel_import( self, context ):
+	self.layout.operator(
+		COD_MT_import_xmodel.bl_idname,
+		text = "Import XModel (.xmodel_[bin/export])"
+	)
 
 
-def menu_func_xanim_import(self, context):
-	self.layout.operator(COD_MT_import_xanim.bl_idname,
-						 text="CoD XAnim (.XANIM_EXPORT, .XANIM_BIN)")
+def menu_func_xanim_import( self, context ):
+	self.layout.operator(
+		COD_MT_import_xanim.bl_idname,
+		text = "Import XAnim (.xanim_[bin/export])"
+	)
 
 
-def menu_func_xmodel_export(self, context):
-	self.layout.operator(COD_MT_export_xmodel.bl_idname,
-						 text="CoD XModel (.xmodel_export, .xmodel_bin)")
+def menu_func_xmodel_export( self, context ):
+	self.layout.operator(
+		COD_MT_export_xmodel.bl_idname,
+		text = "Export XModel (.xmodel_[bin/export])"
+	)
 
 
-def menu_func_xanim_export(self, context):
-	self.layout.operator(COD_MT_export_xanim.bl_idname,
-						 text="CoD XAnim (.XANIM_EXPORT, .XANIM_BIN)")
+def menu_func_xanim_export( self, context ):
+	self.layout.operator(
+		COD_MT_export_xanim.bl_idname,
+		text = "Export XAnim (.xanim_[bin/export])"
+	)
 
 
-def menu_func_import_submenu(self, context):
-	self.layout.menu(COD_MT_import_submenu.bl_idname, text="Call of Duty")
+def menu_func_import_submenu( self, context ):
+	self.layout.menu(
+		COD_MT_import_submenu.bl_idname,
+		text = "Call of Duty"
+	)
 
 
-def menu_func_export_submenu(self, context):
-	self.layout.menu(COD_MT_export_submenu.bl_idname, text="Call of Duty")
+def menu_func_export_submenu( self, context ):
+	self.layout.menu(
+		COD_MT_export_submenu.bl_idname,
+		text="Call of Duty"
+	)
 
 
 classes = (
@@ -1300,8 +1296,6 @@ classes = (
 	COD_MT_export_submenu,
 	updater.UpdateOperator,
 	updater.ConfirmUpdateOperator,
-	updater.CancelDialogOperator,
-	updater.ISeeHowItIsOperator,
 	updater.ViewFullChangelogOnGithubOperator,
 	shared.PV_OT_message_list_popup,
 )

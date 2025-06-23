@@ -124,7 +124,6 @@ def save(self, context, filepath="",
          target_format='XANIM_EXPORT',
          use_selection=False,
          global_scale=1.0,
-         apply_unit_scale=False,
          use_all_actions=False,
          filename_format="%action",
          use_notetracks=True,
@@ -142,8 +141,7 @@ def save(self, context, filepath="",
         use_notetrack_file = False
 
     # Apply unit conversion factor to the scale
-    if apply_unit_scale:
-        global_scale /= shared.calculate_unit_scale_factor(context.scene)
+    global_scale /= shared.calculate_unit_scale_factor(context.scene)
 
     ob = bpy.context.object
     if ob.type != 'ARMATURE':

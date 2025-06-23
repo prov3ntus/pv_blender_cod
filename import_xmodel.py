@@ -18,13 +18,10 @@
 
 # <pep8 compliant>
 
-import os
-import bpy
-import bmesh
-import array
+import os, bpy, bmesh, array, math
 from mathutils import *
-from math import *
 from bpy_extras.image_utils import load_image
+from .pv_py_utils.stdlib import *
 
 from . import shared as shared
 from .PyCoD import xmodel as XModel
@@ -117,27 +114,27 @@ def join_armatures(skel1_ob, skel2_ob, skel2_mesh_obs):
 			mod.use_vertex_groups = True
 
 
-def load(self, context,
-		 filepath,
-		 global_scale=1.0,
-		 apply_unit_scale=False,
-		 use_single_mesh=True,
-		 use_dup_tris=True,
-		 use_custom_normals=True,
-		 use_vertex_colors=True,
-		 use_armature=True,
-		 use_parents=True,
-		 attach_model=False,
-		 merge_skeleton=False,
-		 use_image_search=True):
+def load(
+		self,
+		context,
+		filepath,
+		global_scale = 1.0,
+		use_single_mesh = True,
+		use_dup_tris = True,
+		use_custom_normals = True,
+		use_vertex_colors = True,
+		use_armature = True,
+		use_parents = True,
+		attach_model = False,
+		merge_skeleton = False,
+		use_image_search = True
+	):
 
-	# Apply unit conversion factor to the scale
-	if apply_unit_scale:
-		global_scale *= shared.calculate_unit_scale_factor(context.scene)
+	global_scale *= shared.calculate_unit_scale_factor( context.scene )
 
 	target_scale = global_scale
 
-	if use_armature is False:
+	if use_armature == false:
 		attach_model = False
 
 	skel_old = get_armature_for_object(context.active_object)

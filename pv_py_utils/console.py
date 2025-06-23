@@ -110,14 +110,16 @@ def progress_bar(
 		`print_end` (str, optional) | The end character to print. Defaults to `"\\r"`.
 	"""
 	global _last_update
+	# Use a local var here cause it's faster to access than a global one
+	__last_update = _last_update
 
 	# If we're on the last iteration, we're gonna skip the limiter check
 	# so that it prints 100% at the end and prints a new line
 	if iteration != total and max_update_freq:
-		if stdlib.get_time() < _last_update + ( 1 / max_update_freq ):
+		if stdlib.get_time() < __last_update + ( 1 / max_update_freq ):
 			return # We've hit the limit on how often we can print
 
-		_last_update = stdlib.get_time()
+		__last_update = stdlib.get_time()
 
 	#str_percent = ( "{0:." + str(decimals) + "f}" ).format( 100 * ( iteration / float( total ) ) )
 	filledLength = int( length * iteration // total )

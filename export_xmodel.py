@@ -485,7 +485,6 @@ def save(
 		version = '7',
 		use_selection = false,
 		global_scale = 1.0,
-		apply_unit_scale = false,
 		apply_modifiers = true,
 		use_vertex_colors = true,
 		use_vertex_colors_alpha = true,
@@ -503,8 +502,7 @@ def save(
 	use_frame_end = 1
 
 	# Apply unit conversion factor to the scale
-	if apply_unit_scale:
-		global_scale /= shared.calculate_unit_scale_factor( context.scene )
+	global_scale /= shared.calculate_unit_scale_factor( context.scene )
 
 	# There's no context object right after object deletion, need to set one
 	if context.object:
@@ -517,17 +515,18 @@ def save(
 				context.view_layer.objects.active = ob
 				break
 			else:
-				return "No mesh to export."
+				return "No mesh to export!"
 
 	# HACK: Force an update, so that bone tree is properly sorted
 	#  for hierarchy table export
-	bpy.ops.object.mode_set(mode='EDIT', toggle=false)
-	bpy.ops.object.mode_set(mode='OBJECT', toggle=false)
+	bpy.ops.object.mode_set( mode='EDIT', toggle=false )
+	bpy.ops.object.mode_set( mode='OBJECT', toggle=false )
 	# ob.update_from_editmode()  # Would this work instead?
 
-	armature, objects = gather_exportable_objects( export_operator, context,
-											   	   use_selection,
-											   	   use_armature )
+	armature, objects = gather_exportable_objects(
+		export_operator, context,
+		use_selection, use_armature
+	)
 
 	# If we were unable to detect any valid rigged objects
 	# we'll use the selected mesh.

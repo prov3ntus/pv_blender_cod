@@ -12,11 +12,12 @@ undefined		= None
 
 
 
-class SpawnStruct():
+class GVar():
 	__name__ = 'struct'
+	__info__ = 'Global variable utilisation to transcend variable scopes (even consistent across scripts)'
+	is_updating: bool = false
 
-gvar = SpawnStruct()
-gvar.__info__ = 'Global variable utilisation to transcend variable scopes (even consistent across scripts)'
+gvar = GVar()
 
 
 #############################
