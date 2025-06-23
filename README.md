@@ -16,6 +16,7 @@ It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversof
 
 3. Check the checkbox to enable the plugin.
 
+![image](https://github.com/user-attachments/assets/a31e249c-231d-4374-8ec1-2e8a5d173849)
 
 
 ## New Features
@@ -71,15 +72,14 @@ Therefore, you won't need VertexColorsPlus for Blender 4.X (the plugin doesn't e
 
 There are some things I still need to add to / fix with the plugin; they're all detailed here, in order of highest to least priority:
 
-- Fix compression for exporting to binary formats (as currently, no compression is being applied and file sizes are BIG).
 - Look into XAnim importing & exporting and fix issues left by previous maintainers (and hence add 4.0+ support).
-- Show a summary of the changelog in the auto-update prompt so you know why you're updating.
 - Drag n' drop support for importing XModel/XAnims
-- Reports of some scaling issues (might possibly be other plugins fucking up, need to look into it).
 
 ---
 
-The aim for this plugin is to support all versions from Blender 3.X, to Blender 4.X. As aforementioned above, I haven't gotten around to fixing XAnim support yet so please be patient until I do.
+The aim for this plugin is to support all versions of Blender (3.X AND 4.X).
+
+As aforementioned above, I haven't gotten around to fixing XAnims yet so please be patient until I do.
 
 Other than that, please **let me know if you encounter a problem** by opening an issue [here](https://github.com/w4133d/pv_blender_cod/issues/new/choose), and I'll fix it **as soon as I can**!
 
