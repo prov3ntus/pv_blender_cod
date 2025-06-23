@@ -8,6 +8,14 @@ Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
 
 It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon previously maintained by Serious.
 
+## Download
+
+### Step 1
+Go to the [latest release](https://github.com/w4133d/pv_blender_cod/releases/latest/) and download `_pv_blender_cod.zip`
+
+### Step 2
+...
+
 ## New Features
 
 Here is a definitive list of features / fixes I've made to the plugin:
