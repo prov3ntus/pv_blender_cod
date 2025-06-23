@@ -105,7 +105,7 @@ def check_for_update() -> Union[ Exception, int ]:
 	latest_version = get_latest_version()
 	console.log(
 		console.bold( f"Took {console.timef( get_time() - start )} to grab latest version from GitHub." ),
-		color = console.bcolors.HEADER
+		color = console.bcolors.OKGREEN
 	)
 	
 
@@ -220,7 +220,7 @@ class ConfirmUpdateOperator(bpy.types.Operator):
 
 		shared.plugin_preferences.auto_update_enabled = not self.dont_ask_again
 
-		return {'CANCELLED'}
+		return None
 
 	def draw( self, context ):
 

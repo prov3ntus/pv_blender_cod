@@ -8,20 +8,22 @@ Make sure you _**UNCHECK**_ any other Blender COD addon, as they will conflict!
 
 It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversoftdev/BetterBetterBlenderCOD) addon previously maintained by Serious.
 
-## Download
+## Install Instructions
 
-### Step 1
-Go to the [latest release](https://github.com/w4133d/pv_blender_cod/releases/latest/) and download `_pv_blender_cod.zip`
+1. Go to [releases](https://github.com/w4133d/pv_blender_cod/releases/latest/) and download `_pv_blender_cod.zip`.
 
-### Step 2
-...
+2. In Blender, in the top right go to `Edit > Preferences > Add-ons` & click "Install", then browse to where you saved `_pv_blender_cod.zip` and install it.
+
+3. Check the checkbox to enable the plugin.
+
+
 
 ## New Features
 
 Here is a definitive list of features / fixes I've made to the plugin:
 
-### Cleans Material Names
-Upon export, any invalid characters are replaced with underscores, and the material name is lower-cased.
+### Material Name Cleaner
+Sanitises any material names. Upon export, any invalid characters are replaced with underscores, and the material name is lower-cased.
 
 It's baffling that this wasn't added by any of the previous maintainers, tbh. This plugin was never really shown any love.
 
@@ -31,7 +33,9 @@ Using the "Export Selection" option when exporting XModels now **fully works** w
 You no longer have to join the mesh before exporting.
 
 
-### Blender 4.0+ Bug Fixes
+### Blender 4.X Bug Fixes
+The plugin actually works in 4.X now 💀
+
 Exporting XModels now apply modifiers. Custom weighted/split normals are preserved.
 Only auto-triangulates if necessary upon export, as export triangulation was discarding some data (it no longer does this anyway anymore).
 
