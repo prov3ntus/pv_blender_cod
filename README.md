@@ -83,15 +83,23 @@ As aforementioned above, I haven't gotten around to fixing XAnims yet so please 
 
 Other than that, please **let me know if you encounter a problem** by opening an issue [here](https://github.com/w4133d/pv_blender_cod/issues/new/choose), and I'll fix it **as soon as I can**!
 
-Credits are due to all previous maintainers:
+## Credits:
+
+### All previous maintainers
 [shiversoftdev](https://github.com/shiversoftdev)
 [Ma_rv](https://github.com/marv7000/)
 [CoDEManX](https://github.com/CoDEmanX)
 Flybyny (couldn't find a GH profile)
 [SE2Dev](https://github.com/SE2Dev).
 
-Special thanks:
+### Special Thx:
+
 VerK0 - Feature ideas / suggestions / fixes(being sexy)
+
 Kurunvro - Tester
+
+### Dependancies:
+
+This plugin uses the [Python LZ4](https://pypi.org/project/lz4/) library.
 
 ye
