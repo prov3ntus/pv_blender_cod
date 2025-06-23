@@ -77,9 +77,8 @@ Credits are due to all previous maintainers:
 Flybyny (couldn't find a GH profile)
 [SE2Dev](https://github.com/SE2Dev).
 
-Other credits:
-Xela - The reason I started maintaining this in the first place.
-VerK0 - ideas for some features/improvements.
-Kurunvro - Helping me debug normals not exporting properly in Blender 4.X
+Special thanks:
+VerK0 - Feature ideas / suggestions / fixes(being sexy)
+Kurunvro - Tester
 
 ye
