@@ -37,9 +37,10 @@ You can turn off auto-update checks in the plugin's settings.
 Like CoDMayaTools, you are notified if any warnings occured during an operation.
 The **first five** are shown on the pop-up.
 
-For more information about the warnings, open the console window by going in Blender to the top left, then click **Window --> Toggle System Console**.
-There will be descriptions of all warnings, and any overflow warnings (when there are more than 5 warnings in one export).
-You can also copy the output of the console and include it when you report the error.
+For more info about the warnings, open the console in Blender by going to the top left, click **Window --> Toggle System Console**.
+
+There will be descriptions of any warnings that occured. Only 5 show in the pop-up, but they all show in console. 
+You should copy the output of the console and include it when creating an issue.
 
 
 ### Vertex Color Fixes
