@@ -108,9 +108,9 @@ def export_action(self, context, progress, action,
         notes = [XAnim.Note(marker.frame, marker.name) for marker in markers]
         anim.notes = notes
 
-    # Write the XANIM_EXPORT file (and NT_EXPORT file if enabled)
+    # Write the xanim_export file (and NT_EXPORT file if enabled)
     header_msg = shared.get_metadata_string(filepath)
-    if target_format == 'XANIM_BIN':
+    if target_format == 'xanim_bin':
         anim.WriteFile_Bin(filepath,
                            header_message=header_msg)
     else:
@@ -121,7 +121,7 @@ def export_action(self, context, progress, action,
 
 
 def save(self, context, filepath="",
-         target_format='XANIM_EXPORT',
+         target_format='xanim_export',
          use_selection=False,
          global_scale=1.0,
          use_all_actions=False,

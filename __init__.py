@@ -34,7 +34,7 @@ from .pv_py_utils.stdlib import *
 bl_info = {
 	"name": "pv_blender_cod",
 	"author": "prov3ntus, shiversoftdev, Ma_rv, CoDEmanX, Flybynyt, SE2Dev",
-	"version": ( 0, 8, 9 ),
+	"version": ( 0, 9, 0 ),
 	"blender": ( 3, 0, 0 ),
 	"location": "File > Import  |  File > Export",
 	"description": "Import/Export XModels and XAnims",
@@ -440,12 +440,12 @@ class COD_MT_import_xmodel( bpy.types.Operator, ImportHelper ): # type: ignore
 class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 	bl_idname = "import_scene.xanim"
 	bl_label = "Import XAnim"
-	bl_description = "Import a CoD XANIM_EXPORT / XANIM_BIN File"
+	bl_description = "Import a CoD xanim_export / xanim_bin File"
 	bl_options = {'PRESET'}
 
-	filename_ext = ".XANIM_EXPORT;.NT_EXPORT;.XANIM_BIN"
+	filename_ext = ".xanim_export;.NT_EXPORT;.xanim_bin"
 	filter_glob: StringProperty(
-		default="*.XANIM_EXPORT;*.NT_EXPORT;*.XANIM_BIN",
+		default="*.xanim_export;*.NT_EXPORT;*.xanim_bin",
 		options={'HIDDEN'}
 	)
 
@@ -480,7 +480,7 @@ class COD_MT_import_xanim( bpy.types.Operator, ImportHelper ):
 	use_notetrack_file: BoolProperty(
 		name="Import NT_EXPORT File",
 		description=("Automatically import the matching NT_EXPORT file "
-					 "(if present) for each XANIM_EXPORT"),
+					 "(if present) for each xanim_export"),
 		default=true
 	)
 
@@ -957,28 +957,34 @@ class COD_MT_export_xmodel( bpy.types.Operator, ExportHelper ):
 class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 	bl_idname = "export_scene.xanim"
 	bl_label = 'Export XAnim'
-	bl_description = "Export a CoD XANIM_EXPORT / XANIM_BIN File"
+	bl_description = "Export a CoD XAnim ASCII / Binary File"
 	bl_options = {'PRESET'}
 
-	filename_ext = ".XANIM_EXPORT"
+	filename_ext = ".xanim_export"
 	filter_glob: StringProperty(
-		default="*.XANIM_EXPORT;*.XANIM_BIN", options={'HIDDEN'})
+		default="*.xanim_export;*..xanim_bin", options={'HIDDEN'})
 
 	# Used to map target_format values to actual file extensions
 	format_ext_map = {
-		'XANIM_EXPORT': '.XANIM_EXPORT',
-		'XANIM_BIN': '.XANIM_BIN'
+		'xanim_export': '.xanim_export',
+		'xanim_bin': '.xanim_bin'
 	}
 
 	target_format: EnumProperty(
 		name="Format",
 		description="The target format to export to",
-		items=(('XANIM_EXPORT', "XANIM_EXPORT",
-				"Raw text format used from CoD1-CoD:BO"),
-			   ('XANIM_BIN', "XANIM_BIN",
-				"Binary animation format used by CoD:BO3")),
-		default='XANIM_EXPORT'
-	)
+		items=(
+			(
+				'xanim_export', "ASCII (Export)",
+				"Raw text format used from CoD1 to Black Ops I"
+			),
+			(
+				'xanim_bin', "Binary (Bin)",
+				"Binary animation format used by Black Ops III"
+			)
+		),
+		default='xanim_bin'
+	) # type: ignore
 
 	use_selection: BoolProperty(
 		name="Selection Only",
@@ -1042,7 +1048,7 @@ class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 	use_notetrack_file: BoolProperty(
 		name="Write NT_EXPORT",
 		description=("Create an NT_EXPORT file for "
-					 "the exported XANIM_EXPORT file(s)"),
+					 "the exported xanim_export file(s)"),
 		default=false
 	)
 
@@ -1096,12 +1102,12 @@ class COD_MT_export_xanim( bpy.types.Operator, ExportHelper ):
 			**self.as_keywords( ignore = ( "filter_glob", "check_existing" ) ) )
 
 		if not result:
-			msg = "Export finished in %s." % console.timef( timer() - start_time )
-			self.report( { 'INFO' }, msg )
-			_ret_val = { 'FINISHED' }
+			msg = f"Export finished in {console.timef( timer() - start_time )}."
+			self.report( {'INFO'}, msg )
+			_ret_val = {'FINISHED'}
 		else:
-			self.report( { 'ERROR' }, result )
-			_ret_val = { 'CANCELLED' }
+			self.report( {'ERROR'}, result )
+			_ret_val = {'CANCELLED'}
 		
 		shared.show_warnings()
 		return _ret_val

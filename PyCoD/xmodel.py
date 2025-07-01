@@ -1,57 +1,72 @@
 # <pep8 compliant>
 
 from itertools import repeat
-from time import strftime
 from math import sqrt
+from time import strftime
+from mathutils import Vector
 
 import re
 
 from .xbin import XBinIO, validate_version
 
-def __clamp_float__(value, clamp_range=(-1.0, 1.0)):
-	return max(min(value, clamp_range[1]), clamp_range[0])
+def clamp_float( value ):
+	return max( min( value, 1.0 ), -1.0 )
 
 
-def __clamp_multi__(value, clamp_range=(-1.0, 1.0)):
-	return tuple([max(min(v, clamp_range[1]), clamp_range[0]) for v in value])
+def __clamp_multi__( value ):
+	return tuple( max( min( v, 1.0 ), -1.0 ) for v in value )
 
 # Black Ops Note
 #  NORMAL 0.0 0.0 0.000000000000000000001 <works fine>
 #  NORMAL 0.0 0.0 0.0000000000000000000001 <assert>
 #  NORMAL 0.0 0.0 0.00000000000000000000001 <Vertex normal = 0 error>
 
+# This is the rounding threshold for a float-to-short conversion.
+# If any NORMAL value is below this number, then APE will
+# throw "Vertex normal is 0"
+ROUNDING_THRESHOLD = 0.00001526
 
-def __clamp_normal__(value):
-	value = __clamp_multi__(value)
-	if sum([abs(v) for v in value]) == 0:
+def __process_normal__( normal_tuple ):
+	"""Processes a normal for writing to an ASCII file"""
+	vec = Vector( normal_tuple )
+
+	# Handle true zero-vectors as to prevent division by zero.
+	if vec.length < 1e-6:
 		return (0.0, 0.0, 1.0)
-	return value
 
+	# Normalize the vector to length 1.
+	vec.normalize()
 
-def __normalized__(iterable):
-	d = 1.0 / sqrt(sum([v * v for v in iterable]))
-	return [v * d for v in iterable]
+	# Flush components that are too small for APE to see.
+	x, y, z = vec.x, vec.y, vec.z
+	if abs( x ) < ROUNDING_THRESHOLD: x = 0.0
+	if abs( y ) < ROUNDING_THRESHOLD: y = 0.0
+	if abs( z ) < ROUNDING_THRESHOLD: z = 0.0
 
+	vec = Vector( (x, y, z) )
+	vec.normalize()
 
-def deserialize_image_string(ref_string):
+	return vec
+
+def deserialize_image_string( ref_string ):
 	if not ref_string:
 		return {"color": "$none.tga"}
 
 	out = {}
-	for key, value in re.findall(r'\s*(\S+?)\s*:\s*(\S+)\s*', ref_string):
-		out[key.lower()] = value.lstrip()
+	for key, value in re.findall( r'\s*(\S+?)\s*:\s*(\S+)\s*', ref_string ):
+		out[ key.lower() ] = value.lstrip()
 
 	if not out:
-		out = {"color": ref_string}
+		out = { "color": ref_string }
 	return out
 
 
-def serialize_image_string(image_dict, extended_features=True):
-	if extended_features is True:
+def serialize_image_string( image_dict, extended_features = True) :
+	if extended_features:
 		out = ""
 		prefix = ''
 		for key, value in image_dict.items():
-			out += "%s%s:%s" % (prefix, key, value)
+			out += f"{prefix}{key}:{value}"
 			prefix = ' '
 		return out
 	else:
@@ -66,7 +81,7 @@ def serialize_image_string(image_dict, extended_features=True):
 		return ""
 
 
-class Bone(object):
+class Bone( object ):
 	__slots__ = ('name', 'parent', 'offset', 'matrix', 'scale', 'cosmetic')
 
 	def __init__(self, name, parent=-1, cosmetic=False):
@@ -78,10 +93,10 @@ class Bone(object):
 		self.cosmetic = cosmetic
 
 
-class Vertex(object):
-	__slots__ = ("offset", "weights")
+class Vertex( object ):
+	__slots__ = ( "offset", "weights" )
 
-	def __init__(self, offset=None, weights=None):
+	def __init__( self, offset=None, weights=None ):
 		self.offset = offset
 		if weights is None:
 			# An array of tuples in the format (bone index, influence)
@@ -89,7 +104,7 @@ class Vertex(object):
 		else:
 			self.weights = weights
 
-	def __load_vert__(self, file, vert_count, mesh, vert_tok='VERT'):
+	def __load_vert__( self, file, vert_count, mesh, vert_tok='VERT' ):
 		lines_read = 0
 		state = 0
 
@@ -105,16 +120,17 @@ class Vertex(object):
 			if not line_split:
 				continue
 
-			for i, split in enumerate(line_split):
-				if split[-1:] == ',':
-					line_split[i] = split.rstrip(",")
+			for i, split in enumerate( line_split ):
+				if split[ -1 ] == ',':
+					line_split[ i ] = split.rstrip( "," )
 
 			if state == 0 and line_split[0] == vert_tok:
-				vert_index = int(line_split[1])
+				vert_index = int( line_split[ 1 ] )
 				if vert_index >= vert_count:
-					fmt = ("vert_count does not index vert_index -- "
-						   "%d not in [0, %d)")
-					raise ValueError(fmt % (vert_index, vert_count))
+					raise ValueError(
+					  f"vert_count does not index vert_index -- "
+					  "{vert_index} not in [0, {vert_count})"
+					)
 				state = 1
 			elif state == 1 and line_split[0] == "OFFSET":
 				self.offset = tuple([float(v)
@@ -135,13 +151,13 @@ class Vertex(object):
 
 		return lines_read
 
-	def save(self, file, index, vert_tok_suffix=""):
-		file.write("VERT%s %d\n" % (vert_tok_suffix, index))
-		file.write("OFFSET %f %f %f\n" % self.offset)
-		file.write("BONES %d\n" % len(self.weights))
+	def save( self, file, index, vert_tok_suffix = "" ):
+		file.write( f"VERT{vert_tok_suffix} {index}\n" )
+		file.write( f"OFFSET {self.offset[ 0 ]:.6f} {self.offset[ 1 ]:.6f} {self.offset[ 2 ]:.6f}\n" ) # type: ignore
+		file.write( f"BONES {len( self.weights )}\n" )
 		for weight in self.weights:
-			file.write("BONE %d %f\n" % weight)
-		file.write("\n")
+			file.write( f"BONE {weight[ 0 ]} {weight[ 1 ]}\n" ) # type: ignore
+		file.write( "\n" )
 
 
 class FaceVertex(object):
@@ -150,20 +166,27 @@ class FaceVertex(object):
 	def __init__(self, vertex=None, normal=None, color=None, uv=None):
 		self.vertex = vertex
 		self.normal = normal
-		self.color = color
-		self.uv = uv
+		self.color: tuple[
+			float, float, float, float
+		] = color # type: ignore
+		self.uv: tuple = uv # type: ignore
 
 	def save(self, file, version, index_offset, vert_tok_suffix=""):
 		vert_id = self.vertex + index_offset
-		normal = __clamp_normal__(self.normal)
+		nrml_vec = __process_normal__( self.normal )
 		if version == 5:
-			file.write("VERT %d %f %f %f %f %f\n" %
-					   ((vert_id,) + normal + self.uv))
+			file.write(
+				f"VERT {vert_id} "
+				f"{nrml_vec.x:.6f} {nrml_vec.y:.6f} {nrml_vec.z:.6f} "
+				f"{self.uv[ 0 ]} {self.uv[ 1 ]}\n"
+			)
 		else:
-			file.write("VERT%s %d\n" % (vert_tok_suffix, vert_id))
-			file.write("NORMAL %f %f %f\n" % normal)
-			file.write("COLOR %f %f %f %f\n" % self.color)
-			file.write("UV 1 %f %f\n\n" % self.uv)
+			file.write(
+				f"VERT{vert_tok_suffix} {vert_id}\n"
+				f"NORMAL {nrml_vec.x:.6f} {nrml_vec.y:.6f} {nrml_vec.z:.6f}\n"
+				f"COLOR {self.color[ 0 ]} {self.color[ 1 ]} {self.color[ 2 ]} {self.color[ 3 ]}\n"
+				f"UV 1 {self.uv[ 0 ]:.6f} {self.uv[ 1 ]:.6f}\n\n"
+			)
 
 
 class Face(object):
@@ -219,15 +242,19 @@ class Face(object):
 					state = 2
 
 			elif state == 2 and line_split[0] == "NORMAL":
-				vert.normal = (float(line_split[1]),
-							   float(line_split[2]),
-							   float(line_split[3]))
+				vert.normal = (
+					float( line_split[ 1 ] ),
+					float( line_split[ 2 ] ),
+					float( line_split[ 3 ] )
+				)
 				state = 3
 			elif state == 3 and line_split[0] == "COLOR":
-				vert.color = (float(line_split[1]),
-							  float(line_split[2]),
-							  float(line_split[3]),
-							  float(line_split[4]))
+				vert.color = (
+					float( line_split[ 1 ] ),
+					float( line_split[ 2 ] ),
+					float( line_split[ 3 ] ),
+					float( line_split[ 4 ] ),
+				)
 				state = 4
 			elif state == 4 and line_split[0] == "UV":
 				vert.uv = (float(line_split[2]), float(line_split[3]))
@@ -239,18 +266,19 @@ class Face(object):
 
 		return lines_read
 
-	def save(self, file, version, index_offset, vert_tok_suffix=""):
+	def save( self, file, version, index_offset, vert_tok_suffix="" ):
 		# Only use TRI16 if we're using version 7 or newer, etc.
-		if version >= 7 and (self.mesh_id > 255 or self.material_id > 255):
-			token = "TRI16"
-		else:
-			token = "TRI"
-		file.write("%s %d %d %d %d\n" %
-				   (token, self.mesh_id, self.material_id, 0, 0))
-		for i in range(3):
-			self.indices[i].save(file, version, index_offset,
-								 vert_tok_suffix=vert_tok_suffix)
-		file.write("\n")
+		token = "TRI16" if version >= 7 and (self.mesh_id > 255 or self.material_id > 255) else "TRI"
+
+		file.write( f"{token} {self.mesh_id} {self.material_id} 0 0\n" )
+		
+		for i in range( 3 ):
+			self.indices[i].save(
+				file, version, index_offset,
+				vert_tok_suffix = vert_tok_suffix
+			)
+		
+		file.write( "\n" )
 
 	def isValid(self):
 		'''
@@ -303,24 +331,26 @@ class Material(object):
 
 	def save(self, file, version, material_index, extended_features=True):
 		imgs = serialize_image_string(
-			self.images, extended_features=extended_features)
+			self.images, extended_features=extended_features
+		)
 		if version == 5:
 			file.write('MATERIAL %d "%s"\n' % (material_index, imgs))
 		else:
-			file.write('MATERIAL %d "%s" "%s" "%s"\n' %
-					   (material_index, self.name, self.type, imgs))
-			file.write("COLOR %f %f %f %f\n" % self.color)
-			file.write("TRANSPARENCY %f %f %f %f\n" % self.transparency)
-			file.write("AMBIENTCOLOR %f %f %f %f\n" % self.color_ambient)
-			file.write("INCANDESCENCE %f %f %f %f\n" % self.incandescence)
-			file.write("COEFFS %f %f\n" % self.coeffs)
-			file.write("GLOW %f %d\n" % self.glow)
-			file.write("REFRACTIVE %d %f\n" % self.refractive)
-			file.write("SPECULARCOLOR %f %f %f %f\n" % self.color_specular)
-			file.write("REFLECTIVECOLOR %f %f %f %f\n" % self.color_reflective)
-			file.write("REFLECTIVE %d %f\n" % self.reflective)
-			file.write("BLINN %f %f\n" % self.blinn)
-			file.write("PHONG %f\n\n" % self.phong)
+			file.write(
+				f'MATERIAL {material_index} "{self.name}" "{self.type}" "{imgs}"\n'
+				f"COLOR {self.color[ 0 ]} {self.color[ 1 ]} {self.color[ 2 ]} {self.color[ 3 ]}\n"
+				f"TRANSPARENCY {self.transparency[ 0 ]} {self.transparency[ 1 ]} {self.transparency[ 2 ]} {self.transparency[ 3 ]}\n"
+				f"AMBIENTCOLOR {self.color_ambient[ 0 ]} {self.color_ambient[ 1 ]} {self.color_ambient[ 2 ]} {self.color_ambient[ 3 ]}\n"
+				f"INCANDESCENCE {self.incandescence[ 0 ]} {self.incandescence[ 1 ]} {self.incandescence[ 2 ]} {self.incandescence[ 3 ]}\n"
+				f"COEFFS {self.coeffs[ 0 ]} {self.coeffs[ 1 ]}\n"
+				f"GLOW {self.glow[ 0 ]} {self.glow[ 1 ]}\n"
+				f"REFRACTIVE {self.refractive[ 0 ]} {self.refractive[ 1 ]}\n"
+				f"SPECULARCOLOR {self.color_specular[ 0 ]} {self.color_specular[ 1 ]} {self.color_specular[ 2 ]} {self.color_specular[ 3 ]}\n"
+				f"REFLECTIVECOLOR {self.color_reflective[ 0 ]} {self.color_reflective[ 1 ]} {self.color_reflective[ 2 ]} {self.color_reflective[ 3 ]}\n"
+				f"REFLECTIVE {self.reflective[ 0 ]} {self.reflective[ 1 ]}\n"
+				f"BLINN {self.blinn[ 0 ]} {self.blinn[ 1 ]}\n"
+				f"PHONG {self.phong}\n\n"
+			)
 
 
 class Mesh(object):
@@ -600,7 +630,7 @@ class Model(XBinIO, object):
 				continue
 
 			for i, split in enumerate(line_split):
-				if split[-1:] == ',':
+				if split[ -1 ] == ',':
 					line_split[i] = split.rstrip(",")
 
 			if material_count is None and line_split[0] == "NUMMATERIALS":
@@ -611,7 +641,7 @@ class Model(XBinIO, object):
 				if version == 5:
 					# Legacy XModel materials don't explicitly have a name
 					#  field, so we simply auto-generate a name
-					name = "Material_%d" % index
+					name = f"Material_{index}"
 					material_type = "Lambert"
 					images = deserialize_image_string(line_split[2].strip('"'))
 				else:
@@ -673,44 +703,45 @@ class Model(XBinIO, object):
 
 		return lines_read
 
-	def normalize_weights(self):
+	def normalize_weights( self ):
 		"""
 		Normalize the bone weights for all verts (in all meshes)
 		"""
 		for mesh in self.meshes:
 			for vert in mesh.verts:
-				vert.weights = __normalized__(vert.weights)
+				vert.weights = [ v * ( 1.0 / sqrt( sum( v * v for v in vert.weights ) ) ) for v in vert.weights ]
 
-	def LoadFile_Raw(self, path, split_meshes=True):
-		file = open(path, "r")
-		# file automatically keeps track of what line its on across calls
-		self.__load_header__(file)
-		self.__load_bones__(file)
+	def LoadFile_Raw( self, path, split_meshes = True ):
+		with open( path ) as file:
+			# file automatically keeps track of what line its on across calls
+			self.__load_header__(file)
+			self.__load_bones__(file)
 
-		# A global mesh containing all of the vertex and face data for the
-		# entire model
-		default_mesh = Mesh("$default")
+			# A global mesh containing all of the vertex and face data for the
+			# entire model
+			default_mesh = Mesh("$default")
 
-		default_mesh.__load_verts__(file, self)
-		default_mesh.__load_faces__(file, self.version)
+			default_mesh.__load_verts__(file, self)
+			default_mesh.__load_faces__(file, self.version)
 
-		if split_meshes:
-			self.__load_meshes__(file)
-		self.__load_materials__(file, self.version)
+			if split_meshes:
+				self.__load_meshes__(file)
+			self.__load_materials__(file, self.version)
 
-		if split_meshes:
-			self.__generate_meshes__(default_mesh)
-		else:
-			self.meshes = [default_mesh]
-		file.close()
+			if split_meshes:
+				self.__generate_meshes__(default_mesh)
+			else:
+				self.meshes = [default_mesh]
 
 	# Write an xmodel_export file, by default it uses the objects self.version
-	def WriteFile_Raw(self, path, version=None,
-					  header_message="",
-					  extended_features=True,
-					  strict=False):
+	def WriteFile_Raw(
+			self, path, version = None,
+			header_message = "",
+			extended_features = True,
+			strict = False
+		):
 		# If there is no current version, fallback to the argument
-		version = validate_version(self, version)
+		version = validate_version( self, version )
 
 		if version not in Model.supported_versions:
 			self.version = None
@@ -733,100 +764,102 @@ class Model(XBinIO, object):
 			if version < 7:
 				assert vert_count <= 0xFFFF
 
-		file = open(path, "w")
-		file.write("// Export time: %s\n\n" % strftime("%a %b %d %H:%M:%S %Y"))
+		with open( path, "w" ) as file:
+			# file.write("// Export time: %s\n\n" % strftime("%a %b %d %H:%M:%S %Y"))
 
-		if header_message != '':
-			file.write(header_message)
+			if header_message:
+				file.write( header_message )
 
-		file.write("MODEL\n")
-		file.write("VERSION %d\n\n" % version)
+			file.write("MODEL\n")
+			file.write( f"VERSION {version}\n\n" )
 
-		# Bone Hierarchy
-		file.write("NUMBONES %d\n" % len(self.bones))
+			# Bone Hierarchy
+			file.write( f"NUMBONES {len(self.bones)}\n" )
 
-		# NOTE: Cosmetic bones are only used by version 7 and later
-		if version == 7:
-			cosmetics = len([bone for bone in self.bones if bone.cosmetic])
-			if cosmetics > 0:
-				file.write("NUMCOSMETICS %d\n" % cosmetics)
+			# NOTE: Cosmetic bones are only used by version 7 and later
+			if version == 7:
+				cosmetics = len([bone for bone in self.bones if bone.cosmetic])
+				if cosmetics > 0:
+					file.write( f"NUMCOSMETICS {cosmetics}\n" )
 
-				# Cosmetic bones MUST be written AFTER the standard bones in
-				#  the bone info list, so we need to generate a sorted list
-				#  of index/bone pairs
-				bone_enum = sorted(enumerate(self.bones),
-								   key=lambda kvp: kvp[1].cosmetic)
+					# Cosmetic bones MUST be written AFTER the standard bones in
+					#  the bone info list, so we need to generate a sorted list
+					#  of index/bone pairs
+					bone_enum = sorted(
+						enumerate( self.bones ),
+						key = lambda kvp: kvp[ 1 ].cosmetic
+					)
 
-				# Allocate space for the bone map before any
-				#  modifications to self.bones
-				bone_map = [None] * len(self.bones)
+					# Allocate space for the bone map before any
+					#  modifications to self.bones
+					bone_map = [None] * len(self.bones)
 
-				# Update the bone list & build old->new index map
-				index_map, self.bones = zip(*bone_enum)
-				for new, old in enumerate(index_map):
-					bone_map[old] = new
+					# Update the bone list & build old->new index map
+					index_map, self.bones = zip(*bone_enum)
+					for new, old in enumerate(index_map):
+						bone_map[old] = new
 
-				# Rebuild the parent indices for all non-root bones
-				for bone in self.bones:
-					if bone.parent != -1:
-						bone.parent = bone_map[bone.parent]
+					# Rebuild the parent indices for all non-root bones
+					for bone in self.bones:
+						if bone.parent != -1:
+							bone.parent = bone_map[bone.parent]
 
-				# Rebuild the weight tables for all vertices
-				for mesh in self.meshes:
-					for vert in mesh.verts:
-						vert.weights = [(bone_map[old_index], weight)
-										for old_index, weight in vert.weights]
+					# Rebuild the weight tables for all vertices
+					for mesh in self.meshes:
+						for vert in mesh.verts:
+							vert.weights = [(bone_map[old_index], weight)
+											for old_index, weight in vert.weights]
 
-		# Write the actual bone info
-		for bone_index, bone in enumerate(self.bones):
-			file.write("BONE %d %d \"%s\"\n" %
-					   (bone_index, bone.parent, bone.name))
+			# Write the actual bone info
+			for bone_index, bone in enumerate(self.bones):
+				file.write( f"BONE {bone_index} {bone.parent} \"{bone.name}\"\n" )
 
-		file.write("\n")
+			file.write("\n")
 
-		# Bone Transform Data
-		for bone_index, bone in enumerate(self.bones):
-			file.write("BONE %d\n" % bone_index)
-			file.write("OFFSET %f %f %f\n" %
-					   (bone.offset[0], bone.offset[1], bone.offset[2]))
-			file.write("SCALE %f %f %f\n" % (1.0, 1.0, 1.0))
-			file.write("X %f %f %f\n" % __clamp_multi__(bone.matrix[0]))
-			file.write("Y %f %f %f\n" % __clamp_multi__(bone.matrix[1]))
-			file.write("Z %f %f %f\n\n" % __clamp_multi__(bone.matrix[2]))
-		file.write("\n")
+			# Bone Transform Data
+			for bone_index, bone in enumerate( self.bones ):
+				file.write( f"BONE {bone_index}\n" )
+				file.write( f"OFFSET {bone.offset[0]} {bone.offset[1]} {bone.offset[2]}\n" )
+				file.write( f"SCALE 1.0 1.0 1.0\n" )
+				file.write(
+					f"X {clamp_float( bone.matrix[ 0 ][ 0 ] )} {clamp_float( bone.matrix[ 0 ][ 1 ] )} {clamp_float( bone.matrix[ 0 ][ 2 ] )}\n"
+					f"Y {clamp_float( bone.matrix[ 1 ][ 0 ] )} {clamp_float( bone.matrix[ 1 ][ 1 ] )} {clamp_float( bone.matrix[ 1 ][ 2 ] )}\n"
+					f"Z {clamp_float( bone.matrix[ 2 ][ 0 ] )} {clamp_float( bone.matrix[ 2 ][ 1 ] )} {clamp_float( bone.matrix[ 2 ][ 2 ] )}\n\n"
+				)
+		
+			# file.write( "\n" )
 
-		# Vertices
-		vert_tok_suffix = "32" if version == 7 and vert_count > 0xFFFF else ""
-		file.write("NUMVERTS%s %d\n" % (vert_tok_suffix, vert_count))
-		for mesh_index, mesh in enumerate(self.meshes):
-			vert_offset = vert_offsets[mesh_index]
-			for vert_index, vert in enumerate(mesh.verts):
-				vert.save(file, vert_index + vert_offset, vert_tok_suffix)
+			# Vertices
+			vert_tok_suffix = "32" if version == 7 and vert_count > 0xFFFF else ""
+			file.write( f"NUMVERTS{vert_tok_suffix} {vert_count}\n" )
 
-		# Faces
-		face_count = sum([len(mesh.faces) for mesh in self.meshes])
-		file.write("NUMFACES %d\n" % face_count)
-		for mesh_index, mesh in enumerate(self.meshes):
-			vert_offset = vert_offsets[mesh_index]
-			for face in mesh.faces:
-				face.save(file, version, vert_offset, vert_tok_suffix)
+			for mesh_index, mesh in enumerate(self.meshes):
+				vert_offset = vert_offsets[mesh_index]
+				for vert_index, vert in enumerate(mesh.verts):
+					vert.save(file, vert_index + vert_offset, vert_tok_suffix)
 
-		# Meshes
-		file.write("NUMOBJECTS %d\n" % len(self.meshes))
-		for mesh_index, mesh in enumerate(self.meshes):
-			file.write("OBJECT %d \"%s\"\n" % (mesh_index, mesh.name))
-		file.write("\n")
+			# Faces
+			face_count = sum( len( mesh.faces ) for mesh in self.meshes )
+			file.write( f"NUMFACES {face_count}\n" )
+			for mesh_index, mesh in enumerate(self.meshes):
+				vert_offset = vert_offsets[mesh_index]
+				for face in mesh.faces:
+					face.save( file, version, vert_offset, vert_tok_suffix )
 
-		# Materials
-		file.write("NUMMATERIALS %d\n" % len(self.materials))
-		for material_index, material in enumerate(self.materials):
-			material.save(file, version, material_index,
-						  extended_features=extended_features)
+			# Meshes
+			file.write( f"NUMOBJECTS {len( self.meshes )}\n" )
+			for mesh_index, mesh in enumerate( self.meshes ):
+				file.write( f"OBJECT {mesh_index} \"{mesh.name}\"\n" )
+			file.write( "\n" )
 
-		file.close()
+			# Materials
+			file.write( f"NUMMATERIALS {len( self.materials )}\n" )
+			for material_index, material in enumerate(self.materials):
+				material.save(file, version, material_index,
+							extended_features=extended_features)
 
 	@staticmethod
-	def FromFile_Raw(filepath, split_meshes=True):
+	def FromFile_Raw( filepath, split_meshes = True ):
 		'''
 		Load from an xmodel_export file and return the resulting Model()
 		'''
@@ -834,20 +867,20 @@ class Model(XBinIO, object):
 		model.LoadFile_Raw(filepath, split_meshes)
 		return model
 
-	def LoadFile_Bin(self, path, split_meshes=True,
-					 is_compressed=True, dump=False):
-		file = open(path, "rb")
+	def LoadFile_Bin(
+			self, path, split_meshes = True,
+			is_compressed = True, dump = False
+		):
+		with open(path, "rb") as file:
+			if is_compressed:
+				file = XBinIO.__decompress_internal__(file, dump)
 
-		if is_compressed:
-			file = XBinIO.__decompress_internal__(file, dump)
+			default_mesh = self.__xbin_loadfile_internal__(file, 'MODEL')
 
-		default_mesh = self.__xbin_loadfile_internal__(file, 'MODEL')
-
-		if split_meshes:
-			self.__generate_meshes__(default_mesh)
-		else:
-			self.meshes = [default_mesh]
-		file.close()
+			if split_meshes:
+				self.__generate_meshes__(default_mesh)
+			else:
+				self.meshes = [default_mesh]
 
 	def WriteFile_Bin(
 			self, path,
@@ -863,7 +896,7 @@ class Model(XBinIO, object):
 			cosmetics = len( [ bone for bone in self.bones if bone.cosmetic ] )
 			
 			if cosmetics > 0:
-				print( "Cosmetic bones detected - exporting..." )
+				print( "[ pv_blender_cod ]\tCosmetic bones detected - exporting..." )
 				# Cosmetic bones MUST be written AFTER the standard bones in
 				#  the bone info list, so we need to generate a sorted list
 				#  of index/bone pairs
@@ -897,10 +930,12 @@ class Model(XBinIO, object):
 		# 		( _mesh.name, _mesh.faces.__len__(), _mesh.verts.__len__() )
 		# 	)
 
-		return self.__xbin_writefile_model_internal__(path,
-													  version,
-													  extended_features,
-													  header_message)
+		return self.__xbin_writefile_model_internal__(
+			path,
+			version,
+			extended_features,
+			header_message
+		)
 
 	@staticmethod
 	def FromFile_Bin(filepath, split_meshes=True,

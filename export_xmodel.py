@@ -43,7 +43,7 @@ def uv_layer_is_empty( uv_layer ):
 	return all( _lyr.uv.length_squared == 0.0 for _lyr in uv_layer.data )
 
 
-def validate_mtl_name( _mtl_name: str ):
+def validate_str_for_ape( _mtl_name: str ):
 	"""Replaces any non-ascii / non-alpha-numeric character
 	with an underscore `_`, as well as `lower()`s the mtl name.
 	Crazy how no maintainer has added this before now.
@@ -107,30 +107,32 @@ def gather_exportable_objects(self, context,
 
 	# print( ( 'U' if use_selection else "Not u" ) + "sing selection", _objects )
 
-	print( "[ DEBUG ] Checking", _objects.__len__(), f"object{ 's' if _objects.__len__() - 1 else '' }..." )
+	console.log( "Checking", _objects.__len__(), f"object{ 's' if _objects.__len__() - 1 else '' }..." )
 	for obj in _objects:
 		# print( f"[ DEBUG ] Checking '{ obj.name }' for export..." )
 
 		# Either grab the active armature - or the first armature in the scene
-		if (obj.type == 'ARMATURE' and use_armature and
-			(armature is None or obj == context.active_object) and
-				len(obj.data.bones) > 0):
+		if(
+			obj.type == 'ARMATURE' and use_armature
+			and ( armature is None or obj == context.active_object )
+			and len( obj.data.bones ) > 0
+		):
 			armature = obj
 			continue
 
 		if obj.type != 'MESH':
-			print(
-				f"[ pv_blender_cod ] Skipping object '{ obj.name }' of type '{ obj.type }' as it's not "
-				"a mesh or an armature (or we're not exporting armatures)..."
-			)
+			# console.warning(
+			# 	f"[ pv_blender_cod ] Skipping object '{obj.name}' of type '{obj.type}' as it's not "
+			# 	"a mesh or an armature (or we're not exporting armatures)..."
+			# )
 			errored_objs.append( obj )
 			continue
 
 		if len( obj.material_slots ) < 1:
-			shared.add_warning( f"Found no materials on object '{ obj.name }' - skipping..." )
+			shared.add_warning( f"Found no materials on object '{obj.name}' - skipping..." )
 			# Extra info
 			print( "--> You must have a material assigned to each polygon before exporting your mesh as an XModel!" )
-			print( f"--> To fix this, assign materials to all polygons on '{ obj.name }' before exporting." )
+			print( f"--> To fix this, assign materials to all polygons on '{obj.name}' before exporting." )
 			errored_objs.append( obj )
 			continue
 		
@@ -173,7 +175,7 @@ def gather_exportable_objects(self, context,
 	"""
 
 
-	print( "[ DEBUG ] Found", exportable_objs.__len__(), "exportable object(s) for export" )
+	console.log( "Found", exportable_objs.__len__(), "exportable object(s) for conversion" )
 
 	return armature, exportable_objs
 
@@ -516,12 +518,6 @@ def save(
 				break
 			else:
 				return "No mesh to export!"
-
-	# HACK: Force an update, so that bone tree is properly sorted
-	#  for hierarchy table export
-	bpy.ops.object.mode_set( mode='EDIT', toggle=false )
-	bpy.ops.object.mode_set( mode='OBJECT', toggle=false )
-	# ob.update_from_editmode()  # Would this work instead?
 
 	armature, objects = gather_exportable_objects(
 		export_operator, context,
@@ -886,7 +882,7 @@ def save_model(
 			errored = true
 
 		if not errored:
-			name = validate_mtl_name( name )
+			name = validate_str_for_ape( name )
 
 		mtl = XModel.Material( name, "Lambert", imgs )
 		model.materials.append( mtl )
@@ -909,8 +905,8 @@ def save_model(
 		)
 	else:
 		model.WriteFile_Raw(
-			filepath, version=version,
-			header_message=header_msg
+			filepath, version = version,
+			header_message = f"// {header_msg}\n"
 		)
 
 	console.log( "Finished in", console.timef( get_time() - step_start_time ) )

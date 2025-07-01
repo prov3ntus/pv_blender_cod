@@ -147,7 +147,7 @@ units_of_time = (
 	( 'ns',		10**-9	)
 )
 
-def timef( seconds: float, granularity = 2 ):
+def timef( _secs: float, granularity = 2 ):
 	"""Formats the given time from seconds into a readable string.
 
 	E.g.:
@@ -157,23 +157,23 @@ def timef( seconds: float, granularity = 2 ):
 	- 4825 (w/ a granularity of 2) would return "1 hour, 20 mins"
 	- 4825 (w/ a granularity of 3) would return "1 hour, 20 mins, 25 secs"
 	"""
+	if not _secs: return "0 secs"
+
 	result = []
 
 	for name, count in units_of_time:
-		value = seconds // count
+		value = _secs // count
 		if value:
-			seconds -= value * count
-			if value == 1:
+			_secs -= value * count
+			if value == 1 and count >= 1:
 				name = name.rstrip( 's' )
-			result.append( "%i %s" % ( int( value ), name ) )
+			result.append( f"{int( value )} {name}" )
 	
-	if not result:
-		result = [ "0 secs" ]
-
 	return ', '.join( result[ :granularity ] )
 
 
 byte_intervals = (
+	( 'TB',		10**12	),
 	( 'GB',		10**9	),
 	( 'MB',		10**6	),
 	( 'KB',		10**3	),
@@ -189,16 +189,18 @@ def bytesf( _bytes: float, granularity = 2 ):
 	- 650211430 (w/ a granularity of 2) would return "650 MB, 211 KB"
 	- 650211430 (w/ a granularity of 3) would return "650 MB, 211 KB, 430 bytes"
 	"""
+	if not _bytes: return '0 bytes'
+	
 	result = []
 
 	for name, count in units_of_time:
 		value = _bytes // count
 		if value:
 			_bytes -= value * count
-			if value == 1:
+			if value == 1 and count >= 1:
 				name = name.rstrip( 's' )
-			result.append( "{} {}".format( int( value ), name ) )
-	
+			result.append( f"{int( value )} {name}" )
+
 	return ', '.join( result[ :granularity ] )
 
 __all__ = [ 'bcolors', 'log', 'warning', 'error', 'bold', 'underline', 'progress_bar', 'timef', 'bytesf' ]

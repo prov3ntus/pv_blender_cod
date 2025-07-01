@@ -26,17 +26,15 @@ plugin_preferences = None
 warning_messages: list[ str ] = []
 
 def get_metadata_string( filepath ):
-	msg = "// Exported using pv_blender_cod in Blender %s\n" % bpy.app.version_string
+	msg = f"Exported with pv_blender_cod using Blender {bpy.app.version_string}\n"
+	msg += concat( f"// Export filename: ", filepath.replace( '\\', '/' ), "\n" )
 	msg += f"// Exported on {datetime.datetime.now().strftime( '%B %d, %Y at %H:%M:%S' )}\n"
 
-	msg += "// Export filename: '%s'\n" % filepath.replace( "\\", "/" )
+	if bpy.data.filepath not in ( None, '' ):
+		msg += concat( f"// Source filename: ", bpy.data.filepath.replace( '\\', '/' ), "\n" )
 
-	if bpy.data.filepath in ( None, '' ):
-		source_file = "<none>"
-	else:
-		source_file = "'%s'" % bpy.data.filepath.replace( '\\', '/' )
 
-	return msg + f"// Source filename: {source_file}\n"
+	return msg
 
 
 def calculate_unit_scale_factor( scene ):
