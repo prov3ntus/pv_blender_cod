@@ -89,7 +89,7 @@ def register():
 		elif update_result == updater.UPDATE_AVAILABLE:
 			bpy.app.timers.register( updater.delayed_update_prompt, first_interval = .1 )
 		elif update_result == updater.UPDATE_UPTODATE:
-			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date: v{updater.LOCAL_VERSION}" )
+			print( f"[ pv_blender_cod ]\tpv_blender_cod is up-to-date: v{updater.LOCAL_VERSION}\n" )
 	
 	# do imp updates here? add to a function?? - pv
 	

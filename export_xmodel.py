@@ -612,7 +612,7 @@ def save(
 
 
 	# Restore mode to its previous state
-	bpy.ops.object.mode_set( mode = last_mode, toggle = false )
+	# bpy.ops.object.mode_set( mode = last_mode, toggle = false )
 
 	return result
 

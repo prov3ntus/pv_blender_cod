@@ -1016,7 +1016,6 @@ class XBinIO(object):
 		# Materials
 		XBlock.WriteMetaInt16Block(file, 0xA1B2, len(model.materials))
 		for material_index, material in enumerate(model.materials):
-			print( "Hello there" )
 			XBlock.WriteMaterialInfoBlock(
 				file, material_index,
 				material, extended_features
