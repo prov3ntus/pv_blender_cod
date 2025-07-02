@@ -1,6 +1,7 @@
 
 
 
+import traceback
 from typing import Union
 
 from .pv_py_utils import console
@@ -84,7 +85,7 @@ def install_update( zip_path ):
 		return true
 	except Exception as e:
 		print( f"[ pv_bl_cod Updater ] Update installation failed: {e}" )
-
+		traceback.print_exc()
 		return false
 
 def check_for_update() -> Union[ Exception, int ]:
@@ -130,7 +131,10 @@ def update():
 			restart_addon()
 
 			old_temp_path = os.path.join( BLENDER_ADDONS_PATH, "_update_temp" )
-			if os.path.exists( old_temp_path ): shutil.rmtree( old_temp_path )
+			try:
+				if os.path.exists( old_temp_path ): shutil.rmtree( old_temp_path )
+			except:
+				pass
 
 			return UPDATE_SUCCESS
 
