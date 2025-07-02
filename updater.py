@@ -65,7 +65,7 @@ def download_latest_zip( url, save_path ) -> bool:
 def install_update( zip_path ):
 	"""Extract the downloaded ZIP and replace the current addon"""
 	try:
-		temp_extract_path = os.path.join( BLENDER_ADDONS_PATH, "_update_temp" )
+		temp_extract_path = os.path.join( BLENDER_ADDONS_PATH, "__update_temp" )
 		if os.path.exists( temp_extract_path ):
 			shutil.rmtree( temp_extract_path) 
 
@@ -128,6 +128,10 @@ def update():
 			os.remove( zip_path )
 			print( "Update complete. Restarting addon..." )
 			restart_addon()
+
+			old_temp_path = os.path.join( BLENDER_ADDONS_PATH, "_update_temp" )
+			if os.path.exists( old_temp_path ): shutil.rmtree( old_temp_path )
+
 			return UPDATE_SUCCESS
 
 def restart_addon():
