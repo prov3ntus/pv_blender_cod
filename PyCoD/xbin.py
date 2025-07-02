@@ -94,8 +94,8 @@ def padding( size ):
 	return 4 - size & 0x3
 
 
-def __clamp_float_to_short__(value, _range=(-32768, 32767)):
-	return max(min(int(value * _range[1]), _range[1]), _range[0])
+def __clamp_float_to_short__( value ):
+	return max(min(int(value * 32767), 32767), -32768)
 
 
 def __str_packable__( string ):
@@ -590,15 +590,15 @@ class XBinIO(object):
 		return BytesIO( data )
 
 	@staticmethod
-	def __compress_internal__( in_file, out_file_path ):
+	def __compress_internal__( in_file:BytesIO, out_file_path ):
 		if LZ4_VERBOSE:
 			print_lz4_support_info()
-			print('LZ4: Encoding')
+			print( 'LZ4: Encoding' )
 		
-		in_file.seek(0, os.SEEK_END)
+		in_file.seek( 0, os.SEEK_END )
 		uncompressed_size = in_file.tell()
-		in_file.seek(0, os.SEEK_SET)
-		compressed_data = lz4.compress(in_file.read())
+		# compressed_data = lz4.compress( in_file.read() )
+		compressed_data = lz4.compress( in_file.getvalue() )
 		in_file.close()
 		if LZ4_VERBOSE:
 			print('LZ4: Done')

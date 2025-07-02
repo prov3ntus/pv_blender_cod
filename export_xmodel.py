@@ -22,6 +22,7 @@ import bpy
 import bmesh # type: ignore
 import os
 from itertools import repeat
+from mathutils import Vector
 
 from .pv_py_utils import console
 
@@ -332,8 +333,8 @@ class ExportMesh(object):
 		we assign a material id to a polygon, it has to be from the global
 		index, as xmodel requires.
 		"""
-		self.materials = [ None ] * len( self.mesh.materials )
-		prev_len = global_materials.__len__() # debugging - pv
+		self.materials = [ None ] * self.mesh.materials.__len__()
+		# prev_len = global_materials.__len__() # debugging - pv
 
 		for material_index, material in enumerate( self.mesh.materials ):
 			"""
@@ -402,27 +403,47 @@ class ExportMesh(object):
 
 
 		# Apply transformation matrix to vertices
-		for vert_index, vert in enumerate( self.mesh.vertices ):
+		num_verts = self.mesh.vertices.__len__()
+		vert_coords = [ .0 ] * ( num_verts * 3 )
+		self.mesh.vertices.foreach_get( "co", vert_coords )
+
+		mesh.verts = [ None ] * num_verts
+		vec = Vector()
+
+		for vert_idx in range( num_verts ):
 			mesh_vert = XModel.Vertex()
-			transformed_pos = self.matrix @ vert.co # Apply matrix transform
+
+			coord_idx = vert_idx * 3
+			vec.x, vec.y, vec.z = vert_coords[ coord_idx ], vert_coords[ coord_idx + 1 ], vert_coords[ coord_idx + 2 ]
+			transformed_pos = self.matrix @ vec # Apply matrix transform
 			mesh_vert.offset = tuple( transformed_pos * global_scale )
-			mesh_vert.weights = self.weights[ vert_index ]
-			mesh.verts.append( mesh_vert )
+			mesh_vert.weights = self.weights[ vert_idx ]
+			mesh.verts[ vert_idx ] = mesh_vert
+
 
 		# Extract 3x3 rotation matrix from transformation matrix (ignoring translation)
+		num_materials = self.materials.__len__()
+		num_loops = self.mesh.loops.__len__()
+		loop_vert_indices = [ 0 ] * num_loops
+		self.mesh.loops.foreach_get( "vertex_index", loop_vert_indices )
+
+		loop_normals = [ .0 ] * ( num_loops * 3 )
+		self.mesh.loops.foreach_get( "normal", loop_normals )
+
+		uvs = [ .0 ] * ( num_loops * 2 )
+		if uv_layer: uv_layer.data.foreach_get( "uv", uvs )
+
+		color_data = [ 1.0 ] * ( num_loops * 4 )
+		# Only populate if we have a valid vertex colour layer - pv
+		if vca_layer: vca_layer.data.foreach_get( "color", color_data )
+		elif vc_layer: vc_layer.data.foreach_get( "color", color_data )
+
+
 		normal_transform = self.matrix.to_3x3()
 		invalid_mtl_idxs_encountered = false
 
-		# print( f"[ DEBUG ] Materials on ExportMesh of '{ self.mesh.name }':", self.materials )
-		# print( f"[ DEBUG ] Materials on actual mesh of '{ self.mesh.name }':", self.mesh.materials )
 		for polygon in self.mesh.polygons:
-			face = XModel.Face( 0, 0 )
-			# print( f"[ DEBUG ] Number of indices for '{ self.mesh.name }':", face.indices.__len__() )
-			# print( f"[ DEBUG ] Number of loop idx's on poly: { polygon.loop_indices.__len__() }" )
-			# print( f"[ DEBUG ] Current mtl index of '{ self.mesh.name }': { polygon.material_index }" )
-			# print( "polygon.material_index =", polygon.material_index )
-
-			if polygon.material_index >= self.materials.__len__():
+			if polygon.material_index >= num_materials:
 				invalid_mtl_idxs_encountered = true
 				"""
 				shared.raise_error(
@@ -434,40 +455,38 @@ class ExportMesh(object):
 				"""
 				continue
 
+			face = XModel.Face( 0, 0 )
+
 			face.material_id = self.materials[ polygon.material_index ]
 
-			for i, loop_index in enumerate( polygon.loop_indices ):
-				loop = self.mesh.loops[ loop_index ]
-
-				# Get UV coordinates
-				uv = uv_layer.data[ loop_index ].uv
-
-				# Get vertex colours (with optional alpha channel)
-				if vca_layer is not None:
-					vtx_col = vca_layer.data[ loop_index ].color
-					rgba = ( vtx_col[0], vtx_col[1], vtx_col[2], vtx_col[3] if len(vtx_col) > 3 else 1.0 )
-				elif vc_layer is not None:
-					vtx_col = vc_layer.data[ loop_index ].color
-					rgba = ( vtx_col[0], vtx_col[1], vtx_col[2], vtx_col[3] if len(vtx_col) > 3 else 1.0 )
-				else:
-					rgba = ( 1.0, 1.0, 1.0, 1.0 )
+			for i, loop_idx in enumerate( polygon.loop_indices ):
+				# Get vertex colours from pre-filled color_data list
+				col_idx = loop_idx * 4
+				rgba = tuple( color_data[ col_idx : col_idx + 4 ] )
 
 				# Apply transformation to normal
-				transformed_normal = normal_transform @ loop.normal
+				norm_idx = loop_idx * 3
+				vec.x, vec.y, vec.z = loop_normals[ norm_idx ], loop_normals[ norm_idx + 1 ], loop_normals[ norm_idx + 2 ], 
+				transformed_normal = normal_transform @ vec
 				transformed_normal.normalize() # Ensure normal stays unit-length
 
+				# Get UV coordinates
+				uv_idx = loop_idx * 2
+
 				vert = XModel.FaceVertex(
-					loop.vertex_index,
+					loop_vert_indices[ loop_idx ],
 					transformed_normal, # Use transformed normal
 					rgba,
-					(uv.x, 1.0 - uv.y)
+					( uvs[ uv_idx ], 1.0 - uvs[ uv_idx + 1 ] )
 				)
+
 				face.indices[ i ] = vert
 
 			# Fix winding order
 			face.indices[ 1 ], face.indices[ 2 ] = face.indices[ 2 ], face.indices[ 1 ]
 
 			mesh.faces.append( face )
+
 
 		if invalid_mtl_idxs_encountered:
 			shared.add_warning(

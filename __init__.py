@@ -17,7 +17,8 @@
 # ##### END GPL LICENSE BLOCK #####
 
 
-import traceback, bpy, os, sys
+import traceback, bpy, os, sys, cProfile, pstats
+
 from bpy.types import Operator, AddonPreferences
 from bpy.props import ( BoolProperty, IntProperty, FloatProperty,
 					   StringProperty, EnumProperty, CollectionProperty )
@@ -730,10 +731,17 @@ class COD_MT_export_xmodel( bpy.types.Operator, ExportHelper ):
 		result = None
 
 		try:
-			result = export_xmodel.save(
-				self, context,
-				**self.as_keywords( ignore=ignore ) # type: ignore
-			)
+			results_path = 'M:/Black Ops III/steamapps/common/Call of Duty Black Ops III/model_export/_pv/_vtx_testingprofile_results.prof'
+			cProfile.runctx('export_xmodel.save(self, context,**self.as_keywords( ignore=ignore ) )', globals(), locals(), results_path)
+
+			p = pstats.Stats(results_path)
+			p.strip_dirs().sort_stats('time').print_stats(20) # Top 20 functions by cumulative time
+			p.sort_stats('cumulative').print_stats(20) # Top 20 functions by total time spent in them (and sub-calls)
+
+			# result = export_xmodel.save(
+			# 	self, context,
+			# 	**self.as_keywords( ignore=ignore ) # type: ignore
+			# )
 		except Exception as _e:
 			shared.add_warning(
 				"An error occured while exporting the XModel!\n"

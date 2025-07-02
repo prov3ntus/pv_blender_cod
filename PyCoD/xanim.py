@@ -388,7 +388,7 @@ class Anim(XBinIO, object):
 
 		with open(path, "w") as file:
 			file.write(header_message)
-			file.write("// Export time: %s\n\n" % strftime("%a %b %d %H:%M:%S %Y"))
+			# file.write("// Export time: %s\n\n" % strftime("%a %b %d %H:%M:%S %Y"))
 
 			# If there is no current version, fallback to the argument
 			version = validate_version(self, version)
