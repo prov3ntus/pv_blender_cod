@@ -23,7 +23,7 @@ def __clamp_multi__( value ):
 
 # This is the rounding threshold for a float-to-short conversion.
 # If any NORMAL value is below this number, then APE will
-# throw "Vertex normal is 0"
+# throw "vtx normal is 0"
 ROUNDING_THRESHOLD = 0.00001526
 
 def __process_normal__( normal_tuple ):
