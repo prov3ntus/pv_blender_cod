@@ -10,7 +10,7 @@ It's a continuation of the [BetterBetterBlenderCOD](https://github.com/shiversof
 
 ## Install Instructions
 
-1. Go to [releases](https://github.com/w4133d/pv_blender_cod/releases/latest/) and download `_pv_blender_cod.zip`.
+1. Go to [releases](https://github.com/w4133d/pv_blender_cod/releases/latest/) and download `_pv_blender_cod.zip`. **You don't extract it!**
 
 2. In Blender, in the top left go to `Edit > Preferences > Add-ons` & click "Install" (or "Install from Disk"), then browse to where you saved `_pv_blender_cod.zip` and install it.
 You can delete the `_pv_blender_cod.zip` afterwards if you like.
