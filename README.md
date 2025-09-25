@@ -75,12 +75,14 @@ There are some things I still need to add to / fix with the plugin; they're all 
 
 - Look into XAnim importing & exporting and fix issues left by previous maintainers (and hence add 4.0+ support).
 - Drag n' drop support for importing XModel/XAnims
+- Get to the bottom of "Vertex normal is 0" once and for all
 
 ---
 
 The aim for this plugin is to support all versions of Blender (3.X AND 4.X).
 
 As aforementioned above, I haven't gotten around to fixing XAnims yet so please be patient until I do.
+_I've got a few other massive projects that I'm working on right now, and XAnim exporting work in Maya, so it's not a priority._
 
 Other than that, please **let me know if you encounter a problem** by opening an issue [here](https://github.com/w4133d/pv_blender_cod/issues/new/choose), and I'll fix it **as soon as I can**!
 
@@ -95,12 +97,12 @@ Flybyny (couldn't find a GH profile)
 
 ### Special Thx:
 
-VerK0 - Feature ideas / suggestions / fixes(being sexy)
+VerK0 - Feature ideas / suggestions / fixes
 
 Kurunvro - Tester
 
 ### Dependancies:
 
-This plugin uses the [Python LZ4](https://pypi.org/project/lz4/) library.
+This plugin uses the [Python LZ4](https://pypi.org/project/lz4/) library. It's packaged with the plugin.
 
 ye
